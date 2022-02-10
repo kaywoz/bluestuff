@@ -1,0 +1,16 @@
+//sample kql
+
+DeviceEvents
+| where Timestamp > ago(1d)
+| where ActionType == "UsbDriveMounted"
+| extend DriveLetter = tostring(todynamic(AdditionalFields).DriveLetter)
+| join (
+DeviceFileEvents
+| where Timestamp > ago(1d)
+| where ActionType == "FileCreated"
+| where FileName endswith ".docx" or FileName endswith ".pptx"
+| parse FolderPath with DriveLetter '\\' *
+| extend DriveLetter = tostring(DriveLetter)
+)
+on DeviceId, DriveLetter
+| project AdditionalFields, TimeGenerated, ActionType, DeviceId, ActionType1, FileName1
