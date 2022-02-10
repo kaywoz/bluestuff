@@ -1,0 +1,8 @@
+//sample kql
+DeviceEvents 
+| where TimeGenerated > ago(180d)
+| where ActionType startswith 'Asr' and ActionType contains "AsrUntrustedUsbProcess" or ActionType contains "AsrRansomware"
+| summarize count() by ActionType
+
+
+//| project Timestamp,DeviceId,ActionType,SHA1,InitiatingProcessFileName
