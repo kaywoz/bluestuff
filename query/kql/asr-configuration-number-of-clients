@@ -3,12 +3,11 @@ DeviceTvmSecureConfigurationAssessment
 |where ConfigurationSubcategory contains "Attack Surface Reduction" 
 | join kind=inner
 (
-	
-	| project ConfigurationId, ConfigurationName
+		DeviceTvmSecureConfigurationAssessmentKB
+		| project ConfigurationId, ConfigurationName
 )
 on ConfigurationId
 | summarize Number_of_clients=dcount(DeviceName)by tostring(Context),ConfigurationName,OSPlatform
 |where OSPlatform  in ("macOS","Windows10","Windows10WVD")
 |where ConfigurationName contains "Block untrusted and unsigned processes that run from USB" or ConfigurationName contains "Use advanced protection against ransomware"
 | where Context contains "Block" or Context contains "Audit"
-
