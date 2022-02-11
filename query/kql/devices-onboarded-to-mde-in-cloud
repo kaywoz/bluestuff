@@ -1,0 +1,6 @@
+// sample kql
+DeviceInfo
+| where OnboardingStatus contains 'onboarded'
+| where DeviceName contains '$placeholder'
+| project DeviceName, PublicIP, OSPlatform, MachineGroup, DeviceType
+| summarize arg_max(DeviceName, *) by DeviceName, PublicIP
