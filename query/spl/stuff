@@ -1,0 +1,16 @@
+index=win_events sourcetype IN (WinEventLog:Microsoft-Windows-PowerShell/Operational)  EventCode IN (4103,4104)
+| rex field=_raw "(?ms).*Creating\sScriptblock\stext\s.*:\s+(?<MessageExtract>.*?(?=ScriptBlock))" 
+| rex field=MessageExtract ""^(?P<scriptblock_first_row>.{30})"" 
+| rex field=_raw ".*Host\sApplication\s.*=\s+(?<HostApplication>.*)" 
+| rex field=_raw ".*Command\sName\s.*=\s+(?<CommandName>.*)"  
+| rex field=_raw ".*Command\sType\s.*=\s+(?<CommandType>.*)"  
+| rex field=_raw "User\s=\s\.*(?<User>.*)" 
+| eval pre_payload=coalesce(HostApplication,Path) 
+| eval length=len(MessageExtract)
+| search NOT pre_payload IN ("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","*'Final result: 1';") 
+| eval final_payload=coalesce(pre_payload,MessageExtract) 
+| search (EventCode=4103 CommandName IN ("Command Type = Script","Invoke-WebRequest","New-Object")) 
+OR (EventCode=4104  Message="Creating Scriptblock text (1 of 1)*" NOT MessageExtract IN ("$*","#*","{*","Set-Alias*","function __*","*1';*"))
+| search final_payload!=""
+| table  _time EventCode host User final_payload
+| sort _time
