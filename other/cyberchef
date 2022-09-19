@@ -1,3 +1,2 @@
 ##cyberchef - simple regex replace for powershell obfuscation
-
-Find_/_Replace({'option':'Regex','string':'[\',+`")(UOH]'},'',true,false,true,false)
+Find_/_Replace({'option':'Regex','string':'[\',+`")(\\{0}]'}
