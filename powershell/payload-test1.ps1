@@ -4,4 +4,4 @@
 calc.exe
 sleep 5
 ## kill calc
-stop-process calc.exe
+get-process *calc* | stop-process
