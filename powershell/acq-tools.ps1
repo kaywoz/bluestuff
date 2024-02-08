@@ -74,8 +74,8 @@ Expand-Archive $drop_path
 ## system
 write-host "starting system acquisition"
 systeminfo >> systeminfo.txt
-$tool_path\lastactivityview\LastActivityView.exe /stab lastactivityview.csv
-ForEach ($NameSpace in "root\subscription","root\default") { get-wmiobject -namespace $NameSpace -query "select * from __EventConsumer" >> $temp_path\basic\wmi.txt } 
+$tool_path\lastactivityview\LastActivityView.exe /stab $temp_path\system\lastactivityview.csv
+ForEach ($NameSpace in "root\subscription","root\default") { get-wmiobject -namespace $NameSpace -query "select * from __EventConsumer" >> $temp_path\system\wmi.txt } 
 wmic product list >> wmic_software.txt
 wmic sysdriver list full >> wmic_system_drivers.txt
 wmic list full >> wmic_logon_list.txt
