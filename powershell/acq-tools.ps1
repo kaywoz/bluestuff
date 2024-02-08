@@ -141,5 +141,5 @@ write-host "skipping more stuff" -ForegroundColor White
 ##rmdir -"$temp_path" -force -Recurse
 
 #reset executionpolicy
-write-host "doing miscstuf" -ForegroundColor Green
+write-host "doing miscstuff" -ForegroundColor Green
 Set-executionpolicy -ExecutionPolicy $default_executionpolicy -Force
