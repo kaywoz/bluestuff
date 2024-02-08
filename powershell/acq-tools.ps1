@@ -47,6 +47,9 @@ write-host "fixing executionpolicy" -ForegroundColor Green
 $default_executionpolicy = Get-ExecutionPolicy
 Set-executionpolicy -ExecutionPolicy unrestricted -Force
 Set-executionpolicy -ExecutionPolicy $default_executionpolicy -Force
+# check if running as admin
+$currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+$isadmintrue = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 ##vars
 write-host "setting vars" -ForegroundColor Green
