@@ -124,7 +124,7 @@ systeminfo >> systeminfo.txt
 $lastactivityview_path = "$work_path\lastactivityview\LastActivityView.exe"
 $lastactivityview_args = "/stab $temp_path\system\lastactivityview.csv"
 Start-Process $lastactivityview_path -ArgumentList $lastactivityview_args
-ForEach ($NameSpace in "root\subscription","root\default") { get-wmiobject -namespace $NameSpace -query "select * from __EventConsumer" >> $temp_path\system\wmi.txt } 
+ForEach ($NameSpace in "root\subscription","root\default") { get-wmiobject -namespace $NameSpace -query "select * from __EventConsumer" >> $temp_path\system\wmi.txt} 
 wmic product list >> wmic_software.txt
 wmic sysdriver list full >> wmic_system_drivers.txt
 wmic list full >> wmic_logon_list.txt
