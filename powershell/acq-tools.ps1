@@ -25,6 +25,47 @@
 
  #>
 
+ 
+<#PSScriptInfo
+
+.VERSION 
+
+.GUID 
+
+.AUTHOR 
+
+.COMPANYNAME 
+
+.COPYRIGHT 
+
+.TAGS
+
+.LICENSEURI 
+
+.PROJECTURI 
+
+.ICONURI 
+
+.EXTERNALMODULEDEPENDENCIES 
+
+.REQUIREDSCRIPTS
+
+.EXTERNALSCRIPTDEPENDENCIES
+
+.RELEASENOTES
+    
+.PRIVATEDATA
+
+#>
+
+<#
+.SYNOPSIS
+    
+.DESCRIPTION
+    
+#>
+
+
 Write-Host -ForegroundColor darkblue "@@@@@@@@        @@@@@@@@    @@@@@@@@@@@@@      @@@@@@@  @@@@@@@@@@                   @@@@@@@  @@@@@@
 >> @@@@@@@@       @@@@@@@@   @@@@@@@@@@@@@@@@@   @@@@@@@@@@@@@@@@@@@@@                  @@@@@@@@@@@@@@@
 >>  @@@@@@@@     @@@@@@@@  @@@@@@@@@@@@@@@@@@@   @@@@@@@@@@@@@@@@@@@@@@       @@@       @@@@@@@@@@@@@@@
@@ -48,19 +89,22 @@ $default_executionpolicy = Get-ExecutionPolicy
 Set-executionpolicy -ExecutionPolicy unrestricted -Force
 Set-executionpolicy -ExecutionPolicy $default_executionpolicy -Force
 # check if running as admin
+write-host "checking admin" -ForegroundColor Green
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 $isadmintrue = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 ##vars
 write-host "setting vars" -ForegroundColor Green
-$temp_path = "$env:TEMP\Venor\forensics\"
+$temp_path = "$env:TEMP\venor_v0rpal\forensics\"
 $uuid = (Get-WmiObject -Class Win32_ComputerSystemProduct).UUID +"_"+(Get-Date -Format "yyyyMMddhhmm")
 $work_path = "c:\venor_v0rpal"
 $drop_path = "c:\venor_v0rpal.zip"
 
 #1 dir make
 write-host "making dirs" -ForegroundColor Green
-rmdir "$temp_path" -force -Recurse
+rmdir "$temp_path" -force -Recurse -ErrorAction SilentlyContinue
+mkdir "$temp_path"
+#mkdir "$work_path"
 mkdir "$temp_path\system"
 mkdir "$temp_path\userinfo"
 mkdir "$temp_path\networkinfo"
@@ -70,21 +114,23 @@ mkdir "$temp_path\ramcapture"
 
 ## manage external tools
 write-host "fixing tools" -ForegroundColor Green
-Expand-Archive $drop_path
+Expand-Archive $drop_path -DestinationPath C:\ -Force
 
 #2 acquire
 
 ## system
-write-host "starting system acquisition"
+write-host "starting system acquisition" -ForegroundColor Green
 systeminfo >> systeminfo.txt
-$tool_path\lastactivityview\LastActivityView.exe /stab $temp_path\system\lastactivityview.csv
+$lastactivityview_path = "$work_path\lastactivityview\LastActivityView.exe"
+$lastactivityview_args = "/stab $temp_path\system\lastactivityview.csv"
+Start-Process $lastactivityview_path -ArgumentList $lastactivityview_args
 ForEach ($NameSpace in "root\subscription","root\default") { get-wmiobject -namespace $NameSpace -query "select * from __EventConsumer" >> $temp_path\system\wmi.txt } 
 wmic product list >> wmic_software.txt
 wmic sysdriver list full >> wmic_system_drivers.txt
 wmic list full >> wmic_logon_list.txt
 wmic loadorder list full >> wmic_loadorder.txt
 wmic.exe diskdrive list brief /format:list >> wmic_diskdrive.txt
-$tool_path\SysinternalsSuite\autorunsc64.exe -accepteula >> autorunsc64.txt
+$work_path\SysinternalsSuite\autorunsc64.exe -accepteula >> autorunsc64.txt
 
 ##userinfo
 write-host "starting userstuff" -ForegroundColor Green
@@ -101,7 +147,7 @@ ipconfig /displaydns >> $temp_path\networkinfo\dns_cache.txt
 netstat -anob >> $temp_path\networkinfo\open_network_connections.txt
 netstat -rn >> $temp_path\networkinfo\routing_tables.txt
 arp -a >> $temp_path\networkinfo\arp.txt
-$tool_path\SysinternalsSuite\Tcpvcon.exe –a >> $temp_path\networkinfo\tcpconv.txt
+$work_path\SysinternalsSuite\Tcpvcon.exe –a >> $temp_path\networkinfo\tcpconv.txt
 net sessions >> $temp_path\networkinfo\netbios_sessions.txt
 
 ##fileprocessinfo
@@ -118,8 +164,8 @@ write-host "skipping filesstuff for now" -ForegroundColor Yellow
 
 ## ramdump
 Write-Host "starting ramcapture" -ForegroundColor Green
-$tool_path\RamCapturer\RamCapture64.exe $uuid
-Copy-Item "$tool_path\RamCapturer\$uuid.dump" -DestinationPath $temp_path\ramcapture
+$work_path\RamCapturer\RamCapture64.exe $uuid
+Copy-Item "$work_path\RamCapturer\$uuid.dump" -DestinationPath $temp_path\ramcapture
 
 #3 - archive stuff
 write-host "moving and packing" -ForegroundColor Green
