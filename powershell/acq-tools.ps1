@@ -87,7 +87,7 @@ Write-Host -ForegroundColor darkblue "@@@@@@@@        @@@@@@@@    @@@@@@@@@@@@@ 
 write-host "fixing executionpolicy" -ForegroundColor Green
 $default_executionpolicy = Get-ExecutionPolicy
 Set-executionpolicy -ExecutionPolicy unrestricted -Force
-Set-executionpolicy -ExecutionPolicy $default_executionpolicy -Force
+
 # check if running as admin
 write-host "checking admin" -ForegroundColor Green
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -103,6 +103,7 @@ $drop_path = "c:\venor_v0rpal.zip"
 #1 dir make
 write-host "making dirs" -ForegroundColor Green
 rmdir "$temp_path" -force -Recurse -ErrorAction SilentlyContinue
+rmdir "$drop_path" -force -Recurse -ErrorAction SilentlyContinue
 mkdir "$temp_path"
 #mkdir "$work_path"
 mkdir "$temp_path\system"
@@ -125,37 +126,39 @@ $lastactivityview_path = "$work_path\lastactivityview\LastActivityView.exe"
 $lastactivityview_args = "/stab $temp_path\system\lastactivityview.csv"
 Start-Process $lastactivityview_path -ArgumentList $lastactivityview_args
 ForEach ($NameSpace in "root\subscription","root\default") { get-wmiobject -namespace $NameSpace -query "select * from __EventConsumer" >> $temp_path\system\wmi.txt} 
-wmic product list >> wmic_software.txt
-wmic sysdriver list full >> wmic_system_drivers.txt
-wmic list full >> wmic_logon_list.txt
-wmic loadorder list full >> wmic_loadorder.txt
-wmic.exe diskdrive list brief /format:list >> wmic_diskdrive.txt
-$work_path\SysinternalsSuite\autorunsc64.exe -accepteula >> autorunsc64.txt
+Get-WmiObject win32_product | select Name, Vendor, Version, Caption | Out-File $temp_path\system\wmi_software.txt
+Get-WindowsDriver -All -Online | select Driver, OriginalFileName, Date, Version | Out-File $temp_path\system\wmi_drivers.txt
+Get-WmiObject Win32_Service | select Name, DisplayName, Description, PathName, StartName, ServiceType | Out-File $temp_path\system\wmi_services.txt
+get-psdrive | Out-File $temp_path\system\psdrives.txt
+$autoruns_path = "$work_path\SysinternalsSuite\autorunsc64.exe"
+$autoruns_args = "-o $temp_path\system\autoruns.txt -c -a *"
+Start-Process -NoNewWindow $autoruns_path -ArgumentList $autoruns_args # >> $temp_path\system\autorunsc.txt
+
 
 ##userinfo
 write-host "starting userstuff" -ForegroundColor Green
-net user >> $temp_path\userinfo\local_users.txt
-net localgroup administrators >> $temp_path\userinfo\local_admins.txt 
+net user | Out-File $temp_path\userinfo\local_users.txtls
+net localgroup administrators | Out-File $temp_path\userinfo\local_admins.txt 
 
 ##network
 write-host "starting networkstuff" -ForegroundColor Green
-nbtstat.exe -c >> $temp_path\networkinfo\nbtstat.txt
-nbtstat.exe -S >> $temp_path\networkinfo\nbtstat.txt
-netstat.exe -anb >> $temp_path\networkinfo\netstat_anb_results.txt
-ipconfig /all >> $temp_path\networkinfo\ipsettings.txt
-ipconfig /displaydns >> $temp_path\networkinfo\dns_cache.txt
-netstat -anob >> $temp_path\networkinfo\open_network_connections.txt
-netstat -rn >> $temp_path\networkinfo\routing_tables.txt
-arp -a >> $temp_path\networkinfo\arp.txt
-$work_path\SysinternalsSuite\Tcpvcon.exe –a >> $temp_path\networkinfo\tcpconv.txt
-net sessions >> $temp_path\networkinfo\netbios_sessions.txt
+nbtstat.exe -c | Out-File $temp_path\networkinfo\nbtstat.txt
+nbtstat.exe -S | Out-File $temp_path\networkinfo\nbtstat.txt
+netstat.exe -anb | Out-File $temp_path\networkinfo\netstat_anb_results.txt
+ipconfig /all | Out-File $temp_path\networkinfo\ipsettings.txt
+ipconfig /displaydns | Out-File $temp_path\networkinfo\dns_cache.txt
+netstat -anob | Out-File $temp_path\networkinfo\open_network_connections.txt
+netstat -rn | Out-File $temp_path\networkinfo\routing_tables.txt
+arp -a | Out-File $temp_path\networkinfo\arp.txt
+Get-NetTCPConnection | select local*,remote*,state, owningprocess,@{Name="Process";Expression={(Get-Process -Id $_.OwningProcess).ProcessName}} | ft | Out-File $temp_path\networkinfo\net_tcp.txt
+net sessions | Out-File $temp_path\networkinfo\netbios_sessions.txt
 
 ##fileprocessinfo
 write-host "starting fileprocessstuff" -ForegroundColor Green
-Get-ChildItem -Attributes Hidden $HOME -Recurse -ErrorAction SilentlyContinue >> $temp_path\fileprocessinfo\hidden_files_directories.txt
-tasklist /V >> $temp_path\fileprocessinfo\processes.txt
-tasklist /M >> $temp_path\fileprocessinfo\dlls.txt
-tasklist /SVC >>  $temp_path\fileprocessinfo\service_processess.txt
+Get-ChildItem -Attributes Hidden $HOME -Recurse -ErrorAction SilentlyContinue  | select Name, Length, LastAccessTime, LastWriteTime, Directory | ft -AutoSize | Out-File $temp_path\fileprocessinfo\hidden_files_directories.txt
+tasklist /V | Out-File $temp_path\fileprocessinfo\processes.txt
+tasklist /M | Out-File $temp_path\fileprocessinfo\dlls.txt
+tasklist /SVC | Out-File  $temp_path\fileprocessinfo\service_processess.txt
 
 ##files
 write-host "skipping filesstuff for now" -ForegroundColor Yellow
@@ -164,12 +167,21 @@ write-host "skipping filesstuff for now" -ForegroundColor Yellow
 
 ## ramdump
 Write-Host "starting ramcapture" -ForegroundColor Green
-$work_path\RamCapturer\RamCapture64.exe $uuid
-Copy-Item "$work_path\RamCapturer\$uuid.dump" -DestinationPath $temp_path\ramcapture
+cd $work_path\RamCapturer64
+$ramcapturer_path = "$work_path\RamCapturer64\RamCapture64.exe"
+$ramcapturer_args = "$uuid.dump"
+Function LoadingBar {For($I = 0; $I -le 100; $I = ($I + 1) % 100){Write-Progress -Activity "running Belkasoft ramcapture" -CurrentOperation "Please wait, dump will be copied to work dir and next steps will run automatically" -PercentComplete $I -Status "Dumping RAM";Start-Sleep -M 500;If ($LoadingProcess.HasExited) {Write-Progress -Activity "Dumping all RAM" -Completed;Sleep 1;Break}}}
+$LoadingProcess = Start-Process -FilePath "$ramcapturer_path" -ArgumentList "$ramcapturer_args" -PassThru;LoadingBar;Sleep 1;$LoadingProcess.WaitForExit() | Out-Null
 
+
+
+ 
 #3 - archive stuff
 write-host "moving and packing" -ForegroundColor Green
-Compress-Archive -Path $temp_path -DestinationPath $temp_path\$uuid.zip
+Move-Item "$work_path\RamCapturer64\$uuid.dump" -Destination $temp_path\ramcapture
+start-process "$work_path\7zip\7z.exe" -ArgumentList "$uuid.zip $temp_path\ -pSECRET"
+C:\venor_v0rpal\7zip\7z.exe a C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics.zip C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics\ -pSECRET
+C:\venor_v0rpal\7zip\7z.exe a -mx0 C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics.7z C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics\ -pSECRET
 
 #4 - external tools
 write-host "skipping more stuff" -ForegroundColor White
@@ -179,9 +191,6 @@ write-host "skipping more stuff" -ForegroundColor White
 #4 send stuff
 
 ### xxx
-
-#x remove all
-##rmdir -"$temp_path" -force -Recurse
 
 #x remove all
 ##rmdir -"$temp_path" -force -Recurse
