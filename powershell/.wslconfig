@@ -1,0 +1,13 @@
+[wsl2]
+# Limits VM memory to use no more than 4 GB, this can be set as whole numbers using GB or MB
+memory=8GB 
+
+# Sets the VM to use two virtual processors
+processors=8
+
+
+# Sets additional kernel parameters, in this case enabling older Linux base images such as Centos 6
+kernelCommandLine = vsyscall=emulate
+
+# Sets amount of swap storage space to 8GB, default is 25% of available RAM
+swap=8GB
