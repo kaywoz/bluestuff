@@ -180,7 +180,6 @@ $LoadingProcess = Start-Process -FilePath "$ramcapturer_path" -ArgumentList "$ra
 write-host "moving and packing" -ForegroundColor Green
 Move-Item "$work_path\RamCapturer64\$uuid.dump" -Destination $temp_path\ramcapture
 start-process "$work_path\7zip\7z.exe" -ArgumentList "$uuid.zip $temp_path\ -pSECRET"
-C:\venor_v0rpal\7zip\7z.exe a C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics.zip C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics\ -pSECRET
 C:\venor_v0rpal\7zip\7z.exe a -mx0 C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics.7z C:\Users\User\AppData\Local\Temp\venor_v0rpal\forensics\ -pSECRET
 
 #4 - external tools
@@ -196,5 +195,20 @@ write-host "skipping more stuff" -ForegroundColor White
 ##rmdir -"$temp_path" -force -Recurse
 
 #reset executionpolicy
-write-host "doing miscstuff" -ForegroundColor Green
-Set-executionpolicy -ExecutionPolicy $default_executionpolicy -Force
+write-host "doing miscstuff" -ForegroundColor Green -Verbose
+Set-executionpolicy -ExecutionPolicy $default_executionpolicy -Force -Verbose
+
+
+<#
+to add;
+fileinfo from interesting places,
+tasks,
+services
+networkshares
+common registrykeys
+prefetch
+shadowcopies
+downloads
+eventlogs
+
+#>
