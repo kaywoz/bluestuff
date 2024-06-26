@@ -1,0 +1,142 @@
+//Total # of high / medium incidents
+let lastmonth = getmonth(datetime(now)) -1;
+let year = getyear(datetime(now)); 
+let monthEnd = endofmonth(datetime(now),-1); 
+let high_medium_incidents = 
+SecurityIncident
+| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
+| summarize arg_max(TimeGenerated, *) by IncidentNumber
+| where Status in  ('New', 'Active', 'Closed')
+| where Severity in ('High','Medium')
+| extend KPI = "Total # of high / medium incidents"
+| extend report = "y"
+| project KPI,Severity,report
+| summarize Count=count() by KPI,Severity,report;
+///break
+// # of  high / medium alerts in territory
+let country_list = datatable(name:string,alpha2:string,group:string)
+[
+    "United Kingdom","UK","UK+EU",
+    "Austria","AT","UK+EU",
+    "Belgium","BE","UK+EU",
+    "Bulgaria","BG","UK+EU",
+    "Croatia","HR","UK+EU",
+    "Cyprus","CY","UK+EU",
+    "Czech Republic","CZ","UK+EU",
+    "Denmark","DE","UK+EU",
+    "Estonia","ES","UK+EU",
+    "Finland", "FI","UK+EU",
+    "France","FR","UK+EU",
+    "Germany","DE","UK+EU",
+    "Greece","GR","UK+EU",
+    "Hungary","HU","UK+EU",
+    "Ireland","IE","UK+EU",
+    "Italy","IT","UK+EU",
+    "Latvia","LV","UK+EU",
+    "Lithuania","LT","UK+EU",
+    "Luxembourg","LU","UK+EU",
+    "Malta","MT","UK+EU",
+    "Netherlands","NL","UK+EU",
+    "Poland","PL","UK+EU",
+    "Portugal","PT","UK+EU",
+    "Romania","RU","UK+EU",
+    "Slovakia","SK","UK+EU",
+    "Slovenia","SI","UK+EU",
+    "Spain","ES","UK+EU",
+    "Sweden","SE","UK+EU",
+    "United States","US","US",
+    "Canada","CA","US",
+    "China","CN","PRC",
+    "India","IN","IN",
+    "Bangladesh","BD","IN",
+    "Nepal","NP","IN",
+    "Pakistan","PK","IN"
+];
+let alerts_by_country = SecurityAlert
+| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
+| extend EntitiesDynamicArray=parse_json(Entities)
+| extend ExtendedDynamic=parse_json(ExtendedProperties)
+| mvexpand EntitiesDynamicArray
+| mvexpand ExtendedDynamic 
+| extend Entitytype = tostring(parse_json(EntitiesDynamicArray).Type)
+| where AlertSeverity in ("Medium", "High")
+| extend Severity = AlertSeverity
+| extend IPAddress1 = tostring(parse_json(EntitiesDynamicArray).Address)
+| extend Location1 = tostring(parse_json(ExtendedProperties).["Client Location"])
+| extend Country1 = parse_csv(Location1).[2]
+| extend CountryString = tostring(parse_json(EntitiesDynamicArray).Location)
+| extend Country2 = tostring(parse_json(CountryString).CountryCode)
+| extend Country2 = toupper(Country2)
+| where Country2 !contains "SAMPLE"
+| project DisplayName, IPAddress1, Countries = coalesce(Country1,Country2),Severity
+| where isnotempty( Countries) and DisplayName !has "SAMPLE" //or isnotempty( IPAddress1)
+| summarize Count=count() by Countries, Severity, DisplayName
+| order by Severity asc, Countries
+| project-rename alpha2=Countries
+|join kind=leftouter country_list on alpha2
+| extend group = iff(isempty( group)
+,"RoW"
+,tostring( group))
+| project-rename Country=alpha2, Group=group
+| extend KPI = "# of  high / medium alerts in territory"
+| extend report = "y"
+| project Country,Severity,Count,Group, KPI
+| summarize Count=count() by Group, Severity, KPI
+| sort by Group asc, Severity asc;
+//break
+//Total # incidents requiring CDC analyst attention
+let cdc_attention = SecurityIncident
+| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
+| summarize arg_max(TimeGenerated, *) by IncidentNumber
+| where Status in  ('New', 'Active', 'Closed')
+//| where Severity in ('High','Medium')
+| where ModifiedBy !contains "close" //excluding automations with "close" in title
+| extend KPI = "Total # incidents requiring CDC analyst attention"
+| extend report = "y"
+| project KPI,Severity,report
+| summarize Count=count() by  KPI;
+//break
+//Mean time to detect and mitigate
+let detect_and_mitigate = SecurityIncident
+| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
+    | where Classification has "TruePositive"
+    | summarize arg_max(TimeGenerated, *) by IncidentNumber
+    //| where ModifiedBy !has "Playbook" and ModifiedBy !has "External" and ModifiedBy !has "Automation" and ModifiedBy !has "Microsoft" - removed closure by automation.
+    | extend TimeToMitigate =  (ClosedTime - CreatedTime) // seen as time for incident to close
+    | extend TimeToDetect =  (FirstModifiedTime - CreatedTime) // seen as time for first modification action on incident, presumably by analyst.
+    | summarize avg(TimeToDetect), avg(TimeToMitigate)
+    | extend TimeToDetect_result = floor(avg_TimeToDetect * 100, 100) / 100,
+             TimeToMitigate_result = floor(avg_TimeToMitigate * 100, 100) / 100
+    | extend TimeToDetectStr = format_timespan(TimeToDetect_result, "dd:hh:mm:ss"),
+            TimeToMitigateStr = format_timespan(TimeToMitigate_result, "dd:hh:mm:ss")
+    | extend TimeToDetectParts = split(TimeToDetectStr, ":"),
+        TimeToMitigateParts = split(TimeToMitigateStr, ":")
+    | extend TimeToDetect_result = strcat(tostring(toint(TimeToDetectParts[0])), "d ", tostring(toint(TimeToDetectParts[0])), "h ", TimeToDetectParts[2], "m"),
+        TimeToMitigate_result = strcat(tostring(toint(TimeToMitigateParts[0])), "d ", tostring(toint(TimeToMitigateParts[1])), "h ", TimeToMitigateParts[2], "m")
+    | extend KPI = "Mean time to detect and mitigate"
+    | extend report = "y"
+    |project-rename TimeToDetect=TimeToDetect_result, TimeToMitigate=TimeToMitigate_result
+    |project KPI, report, TimeToDetect, TimeToMitigate;
+//break
+//"% of endpoints with up to date EDR"
+let endpoints_up_to_date = 
+DeviceTvmInfoGathering
+| where Timestamp >= make_datetime(year,lastmonth,01) and LastSeenTime >= monthEnd
+//| where LastSeenTime <= ago(30d
+| evaluate bag_unpack(AdditionalFields)
+| summarize
+    total_devices = count(),
+    devices_updated = countif(AvIsSignatureUptoDate > 0),
+    devices_need_updates = countif(AvIsSignatureUptoDate == 0),
+    malfunctional_reporting = countif(AvIsSignatureUptoDate !in (1,0)) // removed as needed troubleshooting
+| extend totals = total_devices - malfunctional_reporting
+| extend PercentDevicesUpdatedSignatures =
+    round((todouble(devices_updated) / totals * 100), 2)
+| extend KPI = "% of endpoints with up to date EDR"
+| project KPI, PercentDevicesUpdatedSignatures;
+union high_medium_incidents, alerts_by_country, cdc_attention, endpoints_up_to_date, detect_and_mitigate
+| project-away report
+| extend ['stats']=strcat (['Group'], " ", ['Severity'], " ", ['Count'], " ", ['PercentDevicesUpdatedSignatures'], " ", ['TimeToDetect'], " / ", ['TimeToMitigate'])
+| project KPI, stats
+| sort by KPI, stats
+//break
