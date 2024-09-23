@@ -1,142 +1,280 @@
-//Total # of high / medium incidents
-let lastmonth = getmonth(datetime(now)) -1;
+let lastmonth = getmonth(datetime(now)) - 1;
 let year = getyear(datetime(now)); 
-let monthEnd = endofmonth(datetime(now),-1); 
+let monthEnd = endofmonth(datetime(now), - 1);
+let reportMonth=(a:int){
+case(a==1,"January",
+     a==2,"February",
+     a==3,"March",
+     a==4,"April",
+     a==5,"May",
+     a==6,"June",
+     a==7,"July",
+     a==8,"August",
+     a==9,"September",
+     a==10,"October",
+     a==11,"November",
+     a==12,"Dec",
+     "Error"
+)
+};
+//lists
+let placeholder_member_list = datatable(userPrincipalName: string, state: string)
+    [
+    "firstname.lastname@company.com", "member"
+];
+//let country_list = datatable(name: string, alpha2: string, group: string) // removed temporarily due to buggy behaviour when joining table to aggregated data. Case used instead to build Countries-column.
+//    [
+//    "United Kingdom", "UK", "UK+EU",
+//    "Great Britain", "GB", "UK+EU",
+//    "Austria", "AT", "UK+EU",
+//    "Belgium", "BE", "UK+EU",
+//    "Bulgaria", "BG", "UK+EU",
+//    "Croatia", "HR", "UK+EU",
+//    "Cyprus", "CY", "UK+EU",
+//    "Czech Republic", "CZ", "UK+EU",
+//    "Denmark", "DE", "UK+EU",
+//    "Estonia", "ES", "UK+EU",
+//    "Finland", "FI", "UK+EU",
+//    "France", "FR", "UK+EU",
+//    "Germany", "DE", "UK+EU",
+//    "Greece", "GR", "UK+EU",
+//    "Hungary", "HU", "UK+EU",
+//    "Ireland", "IE", "UK+EU",
+//    "Italy", "IT", "UK+EU",
+//    "Latvia", "LV", "UK+EU",
+//    "Lithuania", "LT", "UK+EU",
+//    "Luxembourg", "LU", "UK+EU",
+//    "Malta", "MT", "UK+EU",
+//    "Netherlands", "NL", "UK+EU",
+//    "Poland", "PL", "UK+EU",
+//    "Portugal", "PT", "UK+EU",
+//    "Romania", "RU", "UK+EU",
+//    "Slovakia", "SK", "UK+EU",
+//    "Slovenia", "SI", "UK+EU",
+//    "Spain", "ES", "UK+EU",
+//    "Sweden", "SE", "UK+EU",
+//    "United States", "US", "US",
+//    "Canada", "CA", "US",
+//    "China", "CN", "PRC",
+//    "Hongkong", "HK", "PRC",
+//    "India", "IN", "IN",
+//    "Bangladesh", "BD", "IN",
+//    "Nepal", "NP", "IN",
+//    "Pakistan", "PK", "IN"
+//];
+//check ReportingPeriod
+let reporting_period =
+    SecurityIncident
+| summarize count(), ReportingPeriod=reportMonth(lastmonth)
+    | extend KPI = strcat("Reporting Period");
+///break
+//Total # of high / medium incidents
 let high_medium_incidents = 
-SecurityIncident
-| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
-| summarize arg_max(TimeGenerated, *) by IncidentNumber
-| where Status in  ('New', 'Active', 'Closed')
-| where Severity in ('High','Medium')
-| extend KPI = "Total # of high / medium incidents"
-| extend report = "y"
-| project KPI,Severity,report
-| summarize Count=count() by KPI,Severity,report;
+    SecurityIncident
+    | where TimeGenerated >= make_datetime(year, lastmonth, 01) and TimeGenerated <= monthEnd
+    | summarize arg_max(TimeGenerated, *) by IncidentNumber
+    | where Status in  ('New', 'Active', 'Closed')
+    | where Severity in ('High', 'Medium')
+    | extend KPI = "Total # of high / medium incidents"
+    | extend report = "y"
+    | extend sort_order = "1"
+    | project KPI, Severity, report, sort_order
+    | summarize high = countif(Severity == "High"), medium = countif(Severity == "Medium") by KPI, report, sort_order
+    | extend ['Higcompanyedium'] =strcat("high ", ['high'], " ", "medium ", ['medium'])
+    | project KPI, Higcompanyedium, report, sort_order;
 ///break
 // # of  high / medium alerts in territory
-let country_list = datatable(name:string,alpha2:string,group:string)
-[
-    "United Kingdom","UK","UK+EU",
-    "Austria","AT","UK+EU",
-    "Belgium","BE","UK+EU",
-    "Bulgaria","BG","UK+EU",
-    "Croatia","HR","UK+EU",
-    "Cyprus","CY","UK+EU",
-    "Czech Republic","CZ","UK+EU",
-    "Denmark","DE","UK+EU",
-    "Estonia","ES","UK+EU",
-    "Finland", "FI","UK+EU",
-    "France","FR","UK+EU",
-    "Germany","DE","UK+EU",
-    "Greece","GR","UK+EU",
-    "Hungary","HU","UK+EU",
-    "Ireland","IE","UK+EU",
-    "Italy","IT","UK+EU",
-    "Latvia","LV","UK+EU",
-    "Lithuania","LT","UK+EU",
-    "Luxembourg","LU","UK+EU",
-    "Malta","MT","UK+EU",
-    "Netherlands","NL","UK+EU",
-    "Poland","PL","UK+EU",
-    "Portugal","PT","UK+EU",
-    "Romania","RU","UK+EU",
-    "Slovakia","SK","UK+EU",
-    "Slovenia","SI","UK+EU",
-    "Spain","ES","UK+EU",
-    "Sweden","SE","UK+EU",
-    "United States","US","US",
-    "Canada","CA","US",
-    "China","CN","PRC",
-    "India","IN","IN",
-    "Bangladesh","BD","IN",
-    "Nepal","NP","IN",
-    "Pakistan","PK","IN"
-];
 let alerts_by_country = SecurityAlert
-| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
-| extend EntitiesDynamicArray=parse_json(Entities)
-| extend ExtendedDynamic=parse_json(ExtendedProperties)
-| mvexpand EntitiesDynamicArray
-| mvexpand ExtendedDynamic 
-| extend Entitytype = tostring(parse_json(EntitiesDynamicArray).Type)
-| where AlertSeverity in ("Medium", "High")
-| extend Severity = AlertSeverity
-| extend IPAddress1 = tostring(parse_json(EntitiesDynamicArray).Address)
-| extend Location1 = tostring(parse_json(ExtendedProperties).["Client Location"])
-| extend Country1 = parse_csv(Location1).[2]
-| extend CountryString = tostring(parse_json(EntitiesDynamicArray).Location)
-| extend Country2 = tostring(parse_json(CountryString).CountryCode)
-| extend Country2 = toupper(Country2)
-| where Country2 !contains "SAMPLE"
-| project DisplayName, IPAddress1, Countries = coalesce(Country1,Country2),Severity
-| where isnotempty( Countries) and DisplayName !has "SAMPLE" //or isnotempty( IPAddress1)
-| summarize Count=count() by Countries, Severity, DisplayName
-| order by Severity asc, Countries
-| project-rename alpha2=Countries
-|join kind=leftouter country_list on alpha2
-| extend group = iff(isempty( group)
-,"RoW"
-,tostring( group))
-| project-rename Country=alpha2, Group=group
-| extend KPI = "# of  high / medium alerts in territory"
+    | where TimeGenerated >= make_datetime(year, lastmonth, 01) and TimeGenerated <= monthEnd
+    | extend EntitiesDynamicArray=parse_json(Entities)
+    | extend ExtendedDynamic=parse_json(ExtendedProperties)
+    | mvexpand EntitiesDynamicArray
+    | mvexpand ExtendedDynamic 
+    | extend Entitytype = tostring(parse_json(EntitiesDynamicArray).Type)
+    | where AlertSeverity in ("Medium", "High")
+    | extend Severity = AlertSeverity
+    | extend Location1 = tostring(parse_json(ExtendedProperties).["Client Location"])
+    | extend Country1 = parse_csv(Location1).[2]
+    | extend CountryString = tostring(parse_json(EntitiesDynamicArray).Location)
+    | extend Country2 = tostring(parse_json(CountryString).CountryCode)
+    | extend Country2 = toupper(Country2)
+    | where Country2 !contains "SAMPLE"
+    | extend Countries = case(Country1 contains "UK", "UK+EU", //building new column without coalesce(buggy) and not for join with table(also buggy)
+Country1 contains "GB", "UK+EU",
+Country1 contains  "AT", "UK+EU",
+Country1 contains "BE", "UK+EU",
+Country1 contains "BG", "UK+EU",
+Country1 contains "HR", "UK+EU",
+Country1 contains "CY", "UK+EU",
+Country1 contains "CZ", "UK+EU",
+Country1 contains  "DE", "UK+EU",
+Country1 contains "ES", "UK+EU",
+Country1 contains  "FI", "UK+EU",
+Country1 contains "FR", "UK+EU",
+Country1 contains "DE", "UK+EU",
+Country1 contains  "GR", "UK+EU",
+Country1 contains  "HU", "UK+EU",
+Country1 contains  "IE", "UK+EU",
+Country1 contains  "IT", "UK+EU",
+Country1 contains "LV", "UK+EU",
+Country1 contains "LT", "UK+EU",
+Country1 contains "LU", "UK+EU",
+Country1 contains "MT", "UK+EU",
+Country1 contains "NL", "UK+EU",
+Country1 contains "PL", "UK+EU",
+Country1 contains "PT", "UK+EU",
+Country1 contains "RU", "UK+EU",
+Country1 contains "SK", "UK+EU",
+Country1 contains "SI", "UK+EU",
+Country1 contains  "ES", "UK+EU",
+Country1 contains "SE", "UK+EU",
+Country1 contains "US", "US",
+Country1 contains "CA", "US",
+Country1 contains  "CN", "PRC",
+Country1 contains "HK", "PRC",
+Country1 contains "IN", "IN",
+Country1 contains "BD", "IN",
+Country1 contains "NP", "IN",
+Country1 contains "PK", "IN",
+Country2 contains "UK", "UK+EU",
+Country2 contains "GB", "UK+EU",
+Country2 contains  "AT", "UK+EU",
+Country2 contains "BE", "UK+EU",
+Country2 contains "BG", "UK+EU",
+Country2 contains "HR", "UK+EU",
+Country2 contains "CY", "UK+EU",
+Country2 contains "CZ", "UK+EU",
+Country2 contains  "DE", "UK+EU",
+Country2 contains "ES", "UK+EU",
+Country2 contains  "FI", "UK+EU",
+Country2 contains "FR", "UK+EU",
+Country2 contains "DE", "UK+EU",
+Country2 contains  "GR", "UK+EU",
+Country2 contains  "HU", "UK+EU",
+Country2 contains  "IE", "UK+EU",
+Country2 contains  "IT", "UK+EU",
+Country2 contains "LV", "UK+EU",
+Country2 contains "LT", "UK+EU",
+Country2 contains "LU", "UK+EU",
+Country2 contains "MT", "UK+EU",
+Country2 contains "NL", "UK+EU",
+Country2 contains "PL", "UK+EU",
+Country2 contains "PT", "UK+EU",
+Country2 contains "RU", "UK+EU",
+Country2 contains "SK", "UK+EU",
+Country2 contains "SI", "UK+EU",
+Country2 contains  "ES", "UK+EU",
+Country2 contains "SE", "UK+EU",
+Country2 contains "US", "US",
+Country2 contains "CA", "US",
+Country2 contains  "CN", "PRC",
+Country2 contains "HK", "PRC",
+Country2 contains "IN", "IN",
+Country2 contains "BD", "IN",
+Country2 contains "NP", "IN",
+Country2 contains "PK", "IN",
+isempty( Country1), "missing",
+isempty( Country2), "missing",
+"RoW")
+| where Countries !contains "missing" and DisplayName !has "SAMPLE"
+| distinct SystemAlertId, Countries, Severity
+| extend KPI = strcat("# of high / medium alerts in ", Countries)
 | extend report = "y"
-| project Country,Severity,Count,Group, KPI
-| summarize Count=count() by Group, Severity, KPI
-| sort by Group asc, Severity asc;
+| extend sort_order = "2"
+| summarize high = countif(Severity == "High"), medium = countif(Severity == "Medium") by Countries, KPI, sort_order
+| order by Countries
+| extend TerritoryAlerts = strcat("high ", high, " ", "medium ", medium)
+| project KPI, TerritoryAlerts, sort_order;
 //break
-//Total # incidents requiring CDC analyst attention
-let cdc_attention = SecurityIncident
-| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
-| summarize arg_max(TimeGenerated, *) by IncidentNumber
-| where Status in  ('New', 'Active', 'Closed')
-//| where Severity in ('High','Medium')
-| where ModifiedBy !contains "close" //excluding automations with "close" in title
-| extend KPI = "Total # incidents requiring CDC analyst attention"
-| extend report = "y"
-| project KPI,Severity,report
-| summarize Count=count() by  KPI;
-//break
-//Mean time to detect and mitigate
-let detect_and_mitigate = SecurityIncident
-| where TimeGenerated >= make_datetime(year,lastmonth,01) and TimeGenerated <= monthEnd
-    | where Classification has "TruePositive"
+//Total # incidents requiring placeholder analyst attention
+let placeholder_attention = SecurityIncident
+    | where TimeGenerated >= make_datetime(year, lastmonth, 01) and TimeGenerated <= monthEnd
     | summarize arg_max(TimeGenerated, *) by IncidentNumber
-    //| where ModifiedBy !has "Playbook" and ModifiedBy !has "External" and ModifiedBy !has "Automation" and ModifiedBy !has "Microsoft" - removed closure by automation.
-    | extend TimeToMitigate =  (ClosedTime - CreatedTime) // seen as time for incident to close
-    | extend TimeToDetect =  (FirstModifiedTime - CreatedTime) // seen as time for first modification action on incident, presumably by analyst.
-    | summarize avg(TimeToDetect), avg(TimeToMitigate)
-    | extend TimeToDetect_result = floor(avg_TimeToDetect * 100, 100) / 100,
-             TimeToMitigate_result = floor(avg_TimeToMitigate * 100, 100) / 100
-    | extend TimeToDetectStr = format_timespan(TimeToDetect_result, "dd:hh:mm:ss"),
-            TimeToMitigateStr = format_timespan(TimeToMitigate_result, "dd:hh:mm:ss")
-    | extend TimeToDetectParts = split(TimeToDetectStr, ":"),
-        TimeToMitigateParts = split(TimeToMitigateStr, ":")
-    | extend TimeToDetect_result = strcat(tostring(toint(TimeToDetectParts[0])), "d ", tostring(toint(TimeToDetectParts[0])), "h ", TimeToDetectParts[2], "m"),
-        TimeToMitigate_result = strcat(tostring(toint(TimeToMitigateParts[0])), "d ", tostring(toint(TimeToMitigateParts[1])), "h ", TimeToMitigateParts[2], "m")
-    | extend KPI = "Mean time to detect and mitigate"
+    | where Status in  ('New', 'Active', 'Closed')
+    //| where Severity in ('High','Medium')
+| where ModifiedBy !has "close" and ClassificationComment !has "closed by playbook"//excluding automations with "close" in title
+| where Title !has "[SAMPLE ALERT]"
+| extend comments_message = parse_json(Comments)
+| mv-expand comments_message
+| where comments_message.author.email has "@company.com" or Owner.userPrincipalName has "@company.com" or ModifiedBy has "keyword-token " or comments_message.author contains "create-incident-sn" // looking for evidence that a placeholder analyst has touched the incident.
+    | extend KPI = "Total # incidents requiring placeholder analyst attention"
     | extend report = "y"
-    |project-rename TimeToDetect=TimeToDetect_result, TimeToMitigate=TimeToMitigate_result
-    |project KPI, report, TimeToDetect, TimeToMitigate;
+    | extend sort_order ="3"
+    | project KPI, Severity, report, sort_order
+    | summarize Count=count() by KPI, sort_order;
 //break
-//"% of endpoints with up to date EDR"
-let endpoints_up_to_date = 
-DeviceTvmInfoGathering
-| where Timestamp >= make_datetime(year,lastmonth,01) and LastSeenTime >= monthEnd
-//| where LastSeenTime <= ago(30d
-| evaluate bag_unpack(AdditionalFields)
-| summarize
-    total_devices = count(),
-    devices_updated = countif(AvIsSignatureUptoDate > 0),
-    devices_need_updates = countif(AvIsSignatureUptoDate == 0),
-    malfunctional_reporting = countif(AvIsSignatureUptoDate !in (1,0)) // removed as needed troubleshooting
-| extend totals = total_devices - malfunctional_reporting
-| extend PercentDevicesUpdatedSignatures =
-    round((todouble(devices_updated) / totals * 100), 2)
-| extend KPI = "% of endpoints with up to date EDR"
-| project KPI, PercentDevicesUpdatedSignatures;
-union high_medium_incidents, alerts_by_country, cdc_attention, endpoints_up_to_date, detect_and_mitigate
-| project-away report
-| extend ['stats']=strcat (['Group'], " ", ['Severity'], " ", ['Count'], " ", ['PercentDevicesUpdatedSignatures'], " ", ['TimeToDetect'], " / ", ['TimeToMitigate'])
-| project KPI, stats
-| sort by KPI, stats
+//Total # High incidents requiring placeholder analyst attention
+let placeholder_attention_high = SecurityIncident
+    | where TimeGenerated >= make_datetime(year, lastmonth, 01) and TimeGenerated <= monthEnd
+    | summarize arg_max(TimeGenerated, *) by IncidentNumber
+    | where Status in  ('New', 'Active', 'Closed')
+    | where Severity == "High"
+| where ModifiedBy !has "close" and ClassificationComment !has "closed by playbook"//excluding automations with "close" in title
+| where Title !has "[SAMPLE ALERT]"
+| extend comments_message = parse_json(Comments)
+| mv-expand comments_message
+| where comments_message.author.email has "@company.com" or Owner.userPrincipalName has "@company.com" or ModifiedBy has "keyword-token " or comments_message.author contains "create-incident-sn" // looking for evidence that a placeholder analyst has touched the incident.
+    | extend KPI = "Total # High incidents requiring placeholder analyst attention"
+    | extend report = "y"
+    | extend sort_order ="4"
+    | project KPI, Severity, report, sort_order
+    | summarize Count=count() by KPI, sort_order;
+//mitigate
+let mitigateTP = SecurityIncident
+    | where TimeGenerated >= make_datetime(year, lastmonth, 01) and TimeGenerated <= monthEnd
+    | summarize arg_max(TimeGenerated, *) by IncidentNumber
+    | extend comments_message = parse_json(Comments)
+    | extend StartOfIncident = CreatedTime
+    | extend TimeOfLogEvent = TimeGenerated
+    | mv-expand comments_message
+    | where comments_message contains "A Service Now ticket with ID" or comments_message.author contains "create-incident-sn" //check if playbook ran
+    | where Classification contains "truepositive" //and if its tp
+    | extend TimeOfLogEvent = todatetime(comments_message.createdTimeUtc)
+    //| extend TimeToMitigate =  (SIRstart - StartOfIncident)
+    | extend TimeBetweenEventsAssigned =  (TimeOfLogEvent - StartOfIncident) //timeofcomments_message - startofincident
+    | summarize avg(TimeBetweenEventsAssigned)
+    | extend TimeToMitigate_result = floor(avg_TimeBetweenEventsAssigned * 100, 100) / 100
+    | extend TimeToMitigateStr = format_timespan(TimeToMitigate_result, "dd:hh:mm:ss")
+    | extend TimeToMitigateParts = split(TimeToMitigateStr, ":")
+    | extend TimeToMitigate_result = strcat(tostring(toint(TimeToMitigateParts[0])), "d", tostring(toint(TimeToMitigateParts[1])), "h", TimeToMitigateParts[2], "m ")
+    | extend KPI = "Mean time to mitigate a true positive issue"
+    | extend report = "y"
+    | extend sort_order = "6"
+    | project-rename TimeToMitigate=TimeToMitigate_result
+    | project KPI, report, TimeToMitigate, sort_order;
 //break
+// detect
+let detectTP = SecurityIncident
+    | where TimeGenerated >= make_datetime(year, lastmonth, 01) and TimeGenerated <= monthEnd
+    | order by TimeGenerated asc
+    | extend PrevOwner=prev(Owner)
+    | extend PrevStatus=prev(Status)
+    | extend PrevClassification=prev(Classification)
+    | extend comments_message = parse_json(Comments)
+    | mv-expand comments_message
+    | extend assigned = strcmp(PrevClassification, Classification)
+    | where Owner.userPrincipalName contains "keyword-token"
+    | where Classification has "TruePositive"
+    | extend mitigate_start = todatetime(comments_message.createdTimeUtc)
+    | extend StartOfIncident = CreatedTime
+    | extend TimeOfLogEvent = TimeGenerated
+    | extend TimeBetweenEventsTP =  (TimeOfLogEvent - StartOfIncident)
+    | extend userPrincipalName = tostring(Owner.userPrincipalName)
+    | where assigned == -1 //check if Classification changed from null to tp
+    | join kind=inner placeholder_member_list on userPrincipalName
+    | summarize arg_max(TimeBetweenEventsTP, *) by IncidentNumber, userPrincipalName // remove duplicates
+    | summarize avg(TimeBetweenEventsTP)// by userPrincipalName // summarize median
+    | extend TimeBetweenEventsTP_result = floor(avg_TimeBetweenEventsTP * 100, 100) / 100
+    | extend TimeToDetectStr = format_timespan(TimeBetweenEventsTP_result, "dd:hh:mm:ss")
+    | extend TimeToDetectParts = split(TimeToDetectStr, ":")
+    | extend TimeToDetect_result = strcat(tostring(toint(TimeToDetectParts[0])), "d", tostring(toint(TimeToDetectParts[1])), "h", TimeToDetectParts[2], "m ")
+    | project-rename TimeToDetect = TimeToDetect_result
+    | extend KPI = strcat("Mean time to detect a true positive issue ")
+    | extend report = "y"
+    | extend sort_order = "5"
+    | project KPI, report, TimeToDetect, sort_order;
+//break
+union high_medium_incidents, alerts_by_country, placeholder_attention, placeholder_attention_high, mitigateTP, detectTP, reporting_period
+| sort by sort_order asc, KPI
+| extend ['result_stats']=strcat (['Higcompanyedium'], " ", ['TerritoryAlerts'], " ", ['Count'], " ", ['TimeToMitigate'], " ", ['TimeToDetect'], ['ReportingPeriod']) 
+| project KPI, result_stats
