@@ -57,6 +57,7 @@ docker compose restart
 ## copy workfiles
 
 rclone copy source:/ /workspace/workfiles -P
+unzip /workspace/workfiles/*
 ### maybe rclone move instead and continuously download all files and rerun jobs for new timelines
 #_________________________
 ## run job
