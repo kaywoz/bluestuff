@@ -11,7 +11,7 @@ mkdir /workspace
 chown root /workspace
 cd /workspace
 apt update && sudo apt upgrade -y
-apt install -y python3 python3-pip python3-venv git
+apt install -y python3 python3-pip python3-venv git unzip
 export PATH="$HOME/.local/bin:$PATH"
 python3 --version
 pip --version
