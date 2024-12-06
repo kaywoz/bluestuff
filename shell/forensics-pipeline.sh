@@ -7,11 +7,18 @@
 #trap 'exec 2>&4 1>&3' 0 1 2 3
 #exec 1>log.out 2>&1
 # prep with pre-req for os
+mkdir /workspace
+chown root /workspace
+cd /workspace
 apt update && sudo apt upgrade -y
 apt install -y python3 python3-pip python3-venv git
 export PATH="$HOME/.local/bin:$PATH"
 python3 --version
 pip --version
+#________________________
+## rclone
+
+curl https://rclone.org/install.sh | sudo bash
 #________________________
 ## docker
 curl -sSL https://get.docker.com/ | sh
@@ -41,4 +48,5 @@ docker compose exec timesketch-web tsctl create-user user --password password
 docker compose restart
 #_________________________
 ## run job
+cd /workspace/dftimewolf
 venv/bin/poetry run dftimewolf plaso_ts /home/ka/C/
