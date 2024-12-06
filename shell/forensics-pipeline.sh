@@ -10,6 +10,7 @@
 mkdir /workspace
 mkdir /workspace/dftimewolf
 mkdir /workspace/timesketch
+mkdir /workspace/workfiles
 chown root /workspace
 cd /workspace
 apt update && sudo apt upgrade -y
@@ -52,6 +53,11 @@ cd timesketch/
 docker compose exec timesketch-web tsctl create-user user --password password
 docker compose restart
 #_________________________
+## copy workfiles
+
+rclone copy source:/ /workspace/workfiles -P
+#_________________________
 ## run job
+
 cd /workspace/dftimewolf
-venv/bin/poetry run dftimewolf plaso_ts /home/ka/C/
+venv/bin/poetry run dftimewolf plaso_ts /workspace/workfiles
