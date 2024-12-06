@@ -19,6 +19,8 @@ pip --version
 ## rclone
 
 curl https://rclone.org/install.sh | sudo bash
+curl https://raw.githubusercontent.com/kaywoz/bluestuff/refs/heads/main/other/samples/rclone/rclone.conf > /root/.config/rclone/rclone.conf
+
 #________________________
 ## docker
 curl -sSL https://get.docker.com/ | sh
