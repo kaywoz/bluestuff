@@ -14,7 +14,7 @@ mkdir /workspace/workfiles
 chown root /workspace
 cd /workspace
 apt update && sudo apt upgrade -y
-apt install -y python3 python3-pip python3-venv git unzip
+apt install -y python3 python3-pip python3-venv git unzip nano
 export PATH="$HOME/.local/bin:$PATH"
 python3 --version
 pip --version
@@ -22,6 +22,7 @@ pip --version
 ## rclone
 
 curl https://rclone.org/install.sh | sudo bash
+mkdir /root/.config/rclone/
 curl https://raw.githubusercontent.com/kaywoz/bluestuff/refs/heads/main/other/samples/rclone/rclone.conf > /root/.config/rclone/rclone.conf
 
 #________________________
@@ -56,10 +57,12 @@ docker compose restart
 ## copy workfiles
 
 rclone copy source:/ /workspace/workfiles -P
+### maybe rclone move instead and continuously download all files and rerun jobs for new timelines
 #_________________________
 ## run job
 
 cd /workspace/dftimewolf
 source venv/bin/activate
-venv/bin/poetry run dftimewolf plaso_ts --timesketch_endpoint http://localhost /workspace/workfiles
+#venv/bin/poetry run dftimewolf plaso_ts --timesketch_endpoint http://localhost /workspace/workfiles
 ##venv/bin/poetry run yes $'http://127.0.0.1' | dftimewolf plaso_ts /workspace/workfiles
+venv/bin/poetry run dftimewolf plaso_ts --timesketch_endpoint http://localhost/ --timesketch_username user --timesketch_password password /workspace/workfiles/
