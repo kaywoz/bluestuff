@@ -35,7 +35,7 @@ venv/bin/poetry run dftimewolf -h
 ## timesketch
 curl -s -O https://raw.githubusercontent.com/google/timesketch/master/contrib/deploy_timesketch.sh
 chmod 755 deploy_timesketch.sh
-./deploy_timesketch.sh --start-container
+./deploy_timesketch.sh --start-container --skip-create-user
 cd timesketch/
 docker compose exec timesketch-web tsctl create-user user --password password
 docker compose restart
