@@ -8,6 +8,8 @@
 #exec 1>log.out 2>&1
 # prep with pre-req for os
 mkdir /workspace
+mkdir /workspace/dftimewolf
+mkdir /workspace/timesketch
 chown root /workspace
 cd /workspace
 apt update && sudo apt upgrade -y
@@ -42,6 +44,7 @@ venv/bin/poetry run dftimewolf -h
 
 #_________________________
 ## timesketch
+cd /workspace/timesketch/
 curl -s -O https://raw.githubusercontent.com/google/timesketch/master/contrib/deploy_timesketch.sh
 chmod 755 deploy_timesketch.sh
 ./deploy_timesketch.sh --start-container --skip-create-user
