@@ -60,4 +60,5 @@ rclone copy source:/ /workspace/workfiles -P
 ## run job
 
 cd /workspace/dftimewolf
-venv/bin/poetry run dftimewolf plaso_ts /workspace/workfiles
+source venv/bin/activate
+venv/bin/poetry run yes $'http://127.0.0.1' | dftimewolf plaso_ts /workspace/workfiles
