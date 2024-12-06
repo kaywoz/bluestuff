@@ -3,9 +3,9 @@
 #!/bin/bash
 
 #logging
-exec 3>&1 4>&2
-trap 'exec 2>&4 1>&3' 0 1 2 3
-exec 1>log.out 2>&1
+#exec 3>&1 4>&2
+#trap 'exec 2>&4 1>&3' 0 1 2 3
+#exec 1>log.out 2>&1
 # prep with pre-req for os
 apt update && sudo apt upgrade -y
 apt install -y python3 python3-pip python3-venv git
