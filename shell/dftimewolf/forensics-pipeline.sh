@@ -56,6 +56,8 @@ docker compose restart
 #_________________________
 ## copy workfiles
 
+
+##have to do work on selection of files, form is 2024-12-04T14;18;24.566Z-hostname.sub.domain.com, by date?, by hostname input? some logic?
 rclone copy source:/ /workspace/workfiles -P
 unzip /workspace/workfiles/* ###TODO
 ### maybe rclone move instead and continuously download all files and rerun jobs for new timelines

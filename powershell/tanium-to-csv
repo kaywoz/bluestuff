@@ -1,0 +1,23 @@
+# since apparently Tanium does not output reasonable csv's for other tools like Timeline explorer.
+
+# Define the source and destination folders
+$sourceFolder = "c:\folder\hostname\collector"
+$destinationFolder = "c:\folder\hostname\collector\out"
+
+# Ensure the destination folder exists
+if (-not (Test-Path -Path $destinationFolder)) {
+    New-Item -ItemType Directory -Path $destinationFolder
+}
+
+# Process each file in the source folder
+Get-ChildItem -Path $sourceFolder -Filter *.txt | ForEach-Object {
+    $sourceFile = $_.FullName
+    $newFileName = [System.IO.Path]::ChangeExtension($_.Name, ".csv")
+    $destinationFile = Join-Path -Path $destinationFolder -ChildPath $newFileName
+
+    # Import, process, and export the file
+    Import-Csv -Path $sourceFile -Delimiter "|" | Export-Csv -Path $destinationFile -NoTypeInformation
+}
+$ItemCount= ( Get-ChildItem $destinationFolder | Measure-Object ).Count
+
+Write-Host "Processing completed. $ItemCount Files exported with '.csv' extensions to $destinationFolder" -ForegroundColor Green
