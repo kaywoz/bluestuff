@@ -10,7 +10,7 @@ if (-not (Test-Path -Path $destinationFolder)) {
 }
 
 # Process each file in the source folder
-Get-ChildItem -Path $sourceFolder -Filter *.txt | ForEach-Object {
+Get-ChildItem -Path $sourceFolder -Filter *.txt -Recurse | ForEach-Object {
     $sourceFile = $_.FullName
     $newFileName = [System.IO.Path]::ChangeExtension($_.Name, ".csv")
     $destinationFile = Join-Path -Path $destinationFolder -ChildPath $newFileName
