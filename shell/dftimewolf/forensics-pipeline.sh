@@ -6,6 +6,7 @@
 #exec 3>&1 4>&2
 #trap 'exec 2>&4 1>&3' 0 1 2 3
 #exec 1>log.out 2>&1
+
 # prep with pre-req for os
 mkdir /workspace
 mkdir /workspace/dftimewolf
@@ -31,7 +32,7 @@ curl -sSL https://get.docker.com/ | sh
 
 #_________________________
 ## plaso
-docker run log2timeline/plaso log2timeline.py --version
+docker run log2timeline/plaso --name plaso log2timeline.py --version
 
 #_________________________
 ## dftimewolf
@@ -52,14 +53,16 @@ chmod 755 deploy_timesketch.sh
 ./deploy_timesketch.sh --start-container --skip-create-user
 cd timesketch/
 docker compose exec timesketch-web tsctl create-user user --password password
-docker compose restart
+docker compose restart ## restart compose again in case of 502 for timesketch
 #_________________________
 ## copy workfiles
 
 
 ##have to do work on selection of files, form is 2024-12-04T14;18;24.566Z-hostname.sub.domain.com, by date?, by hostname input? some logic?
-rclone copy source:/ /workspace/workfiles -P
-unzip /workspace/workfiles/* ###TODO
+#cp /tmp/work/ /workspace/workfiles/
+rclone copy /tmp/work/ /workspace/workfiles/ -P
+#rclone copy source:/ /workspace/workfiles -P
+#unzip /workspace/workfiles/* ###TODO
 ### maybe rclone move instead and continuously download all files and rerun jobs for new timelines
 #_________________________
 ## run job
@@ -68,4 +71,4 @@ cd /workspace/dftimewolf
 source venv/bin/activate
 #venv/bin/poetry run dftimewolf plaso_ts --timesketch_endpoint http://localhost /workspace/workfiles
 ##venv/bin/poetry run yes $'http://127.0.0.1' | dftimewolf plaso_ts /workspace/workfiles
-venv/bin/poetry run dftimewolf plaso_ts --timesketch_endpoint http://localhost/ --timesketch_username user --timesketch_password password /workspace/workfiles/
+venv/bin/poetry run dftimewolf plaso_ts /workspace/workfiles --timesketch_endpoint http://localhost/ --incident_id "$hostname" --timesketch_username user --timesketch_password password
