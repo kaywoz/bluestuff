@@ -74,7 +74,22 @@ run_step "Check pip version" pip --version
 run_step "Install rclone" curl https://rclone.org/install.sh | sudo bash
 wait_for_rclone  # Wait for rclone to become available
 run_step "Create rclone config directory" mkdir -p /root/.config/rclone/
-run_step "Configure rclone" curl -o /root/.config/rclone/rclone.conf https://raw.githubusercontent.com/kaywoz/bluestuff/refs/heads/main/other/samples/rclone/rclone.conf
+rclone_conf_path="$HOME/.config/rclone/rclone.conf"
+
+# Write the rclone configuration to the file
+cat <<EOF > "$rclone_conf_path"
+[source]
+type = sftp
+host = ftp.example.com
+user = auser
+pass = FBnjPvheUk7ggBOXcRYkuhNhRHiKSg6qrEovpJpS1iPwkBmQmuxkzy9fYDIt5nQ4
+shell_type = unix
+EOF
+
+# Notify user
+echo "rclone configuration file created at $rclone_conf_path"
+
+#run_step "Configure rclone" curl -o /root/.config/rclone/rclone.conf https://raw.githubusercontent.com/kaywoz/bluestuff/refs/heads/main/other/samples/rclone/rclone.conf
 
 # Docker setup
 run_step "Install Docker" curl -sSL https://get.docker.com/ | sh
