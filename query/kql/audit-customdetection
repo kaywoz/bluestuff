@@ -1,27 +1,50 @@
 CloudAppEvents
-| where Timestamp > ago(180d)    // How far back to check
-| where parse_json(RawEventData).Workload=='Microsoft365Defender'
+| where Timestamp > ago(180d)  // How far back to check
+| where parse_json(RawEventData).Workload == 'Microsoft365Defender'
 // Track rule creation/mods/deletion
-| where ActionType has_any ('CreateCustomDetection', 'EditCustomDetection', 'ChangeCustomDetectionRuleStatus', 'DeleteCustomDetection')
-| extend RuleName = tostring((RawEventData).RuleName)
-| extend RuleId = tostring((RawEventData).RuleId)
-| extend Query = parse_json(RawEventData).Query
-| extend AlertTitle = parse_json(RawEventData).AlertTitle
-| extend Author = iff(ActionType=='CreateCustomDetection', parse_json(RawEventData).UserId, 'null')
-| extend LastAuthor = parse_json(RawEventData).UserId
-| extend AlertCategory = parse_json(RawEventData).AlertCategory
-| extend AlertSeverity = parse_json(RawEventData).AlertSeverity
-| extend MitreTechniques = parse_json(RawEventData).MitreTechniques
-| extend RuleFrequency = parse_json(RawEventData).RuleFrequency
-| extend CreationTime=iff(ActionType=='CreateCustomDetection', Timestamp, datetime(null))
-| extend LastUpdateTime=iff(ActionType=='EditCustomDetection', Timestamp, datetime(null))
-| extend IsEnabled = parse_json(RawEventData).IsEnabled
-//| extend IsEnabled = case(
-  //IsEnabled == false, 0,
-  //(IsEnabled == true) or ActionType=='CreateCustomDetection' or (ActionType=='EditCustomDetection' and Query has 'xxxFLAGxxx'), 1
-  //, int(null))
-// Captures the latest states per rule name/id
-| summarize arg_max(Timestamp, ActionType, CreationTime, LastUpdateTime, AlertTitle, Author, LastAuthor, 
-  IsEnabled, AlertCategory, AlertSeverity, MitreTechniques, RuleFrequency, Query) 
-  by RuleName, RuleId
-//| project-away Query
+| where ActionType has_any (
+    'CreateCustomDetection', 
+    'EditCustomDetection', 
+    'ChangeCustomDetectionRuleStatus', 
+    'DeleteCustomDetection'
+)
+// Extract and extend relevant fields
+| extend RuleName            = tostring(RawEventData.RuleName),
+         RuleId              = tostring(RawEventData.RuleId),
+         Query               = parse_json(RawEventData).Query,
+         AlertTitle          = parse_json(RawEventData).AlertTitle,
+         AlertCategory       = parse_json(RawEventData).AlertCategory,
+         AlertSeverity       = parse_json(RawEventData).AlertSeverity,
+         MitreTechniques     = parse_json(RawEventData).MitreTechniques,
+         AlertDescription    = parse_json(RawEventData).AlertDescription,
+         AlertRecommendation= parse_json(RawEventData).AlertRecommendation,
+         RuleFrequency       = parse_json(RawEventData).RuleFrequency,
+         IsEnabled           = parse_json(RawEventData).IsEnabled,
+         Author              = iff(ActionType == 'CreateCustomDetection', parse_json(RawEventData).UserId, 'null'),
+         LastAuthor          = parse_json(RawEventData).UserId,
+         CreationTime        = iff(ActionType == 'CreateCustomDetection', Timestamp, datetime(null)),
+         LastUpdateTime      = iff(ActionType == 'EditCustomDetection', Timestamp, datetime(null))
+// Optional normalization logic (disabled)
+// | extend IsEnabled = case(
+//     IsEnabled == false, 0,
+//     (IsEnabled == true) or ActionType == 'CreateCustomDetection' or (ActionType == 'EditCustomDetection' and Query has 'xxxFLAGxxx'), 
+//     1,
+//     int(null)
+// )
+// Capture the latest states per rule
+| summarize arg_max(
+    Timestamp,
+    ActionType,
+    CreationTime,
+    LastUpdateTime,
+    AlertTitle,
+    IsEnabled,
+    AlertCategory,
+    AlertDescription,
+    AlertRecommendation,
+    AlertSeverity,
+    MitreTechniques,
+    RuleFrequency,
+    Query
+    //, Author, LastAuthor
+) by RuleName, RuleId
