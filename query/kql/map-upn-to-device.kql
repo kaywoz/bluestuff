@@ -1,0 +1,29 @@
+// map UPN to accountname to a devicelogin - > to use Security Alerts table, currently not scoped.
+let UPNtoAccountName=
+IdentityInfo
+| where AccountUpn contains "placeholder"
+| summarize AccountName=max(AccountName)
+| extend AccountName = tolower(AccountName)
+;
+let DeviceToAccountName=
+DeviceLogonEvents
+| join kind=inner UPNtoAccountName on AccountName
+| where ActionType has "LogonSuccess"
+| where LogonType has "Interactive"
+| summarize max(Timestamp) by DeviceName, DeviceId, AccountName
+//| project Timestamp,DeviceId, DeviceName, AccountName
+| extend Timestamp = max_Timestamp
+;
+let DeviceToEvents=
+DeviceEvents
+| join kind=inner DeviceToAccountName on DeviceId
+| where AdditionalFields contains "Description\":\"Defender" or AdditionalFields contains "ThreatName\":\"Behavior"
+| extend d = parse_json(AdditionalFields)
+| extend TimestampDetection = Timestamp
+| mv-apply d on (project Detection = tostring(d.Description))
+;
+union UPNtoAccountName, DeviceToAccountName, DeviceToEvents
+| sort by Timestamp
+| where isnotempty(DeviceName)
+| distinct Timestamp, DeviceId, DeviceName, Detection
+| extend Detection = iff((isempty(Detection)), "No Detection", Detection)
