@@ -1,10 +1,13 @@
 // map UPN to accountname to a devicelogin - > to use Security Alerts table, currently not scoped.
 let UPNtoAccountName=
 IdentityInfo
-| where AccountUpn contains "placeholder"
+| where AccountUpn contains "user@domain.com" // change this placeholder.
+//| extend SearchForAccount = AccountName
 | summarize AccountName=max(AccountName)
 | extend AccountName = tolower(AccountName)
+| extend AccountName = iff((isempty(AccountName)), "No valid user", AccountName)
 ;
+//UPNtoAccountName
 let DeviceToAccountName=
 DeviceLogonEvents
 | join kind=inner UPNtoAccountName on AccountName
@@ -14,6 +17,7 @@ DeviceLogonEvents
 //| project Timestamp,DeviceId, DeviceName, AccountName
 | extend Timestamp = max_Timestamp
 ;
+//DeviceToAccountName
 let DeviceToEvents=
 DeviceEvents
 | join kind=inner DeviceToAccountName on DeviceId
