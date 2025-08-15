@@ -1,0 +1,23 @@
+// verify if malicious browser extensions by their path/name are on disk and get status, Status maps to Malicious_files-array.
+let Devices = dynamic ([ // device fqdn
+"device.domain.com",
+"device.domain.com"
+]);
+let Malicious_files = dynamic ([ //extension foldername
+//chrome
+"aaaaaaaaaaaabbbbbbbbbbccccccccc",
+"123123123123"
+//edge
+]);
+let FileEventsOnDevice =(DeviceFileEvents
+| where (DeviceName has_any (Devices)))
+;
+FileEventsOnDevice
+| where FolderPath contains "User Data\\Default\\Extensions\\"
+| extend AppPath = extract(@"Local\\.*(Edge|Chrome).*Extensions\\(\w*)",1, FolderPath)
+| extend Extensions = extract(@"Local\\.*(Edge|Chrome).*Extensions\\(\w*)",2, FolderPath)
+| where Extensions !contains "Temp"
+//| where Extensions has_any (Malicious_files)
+| where isnotempty( Extensions)
+| extend Status = iff(Extensions has_any (Malicious_files), Extensions, "Not Detected")
+| distinct Timestamp, DeviceName, AppPath, Status, MD5, SHA1
