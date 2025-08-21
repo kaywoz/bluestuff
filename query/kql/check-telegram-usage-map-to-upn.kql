@@ -1,0 +1,40 @@
+// checks usage of telegram by network and dll loads, maps to users with valid emails, ready to be notified of the coming cataclysmic change.
+
+let TelegramDevices = //checks devices connecting to telegram services.
+DeviceNetworkEvents
+| where RemoteUrl contains "api.telegram"
+| summarize max(Timestamp) by DeviceName
+| extend NetworkConnection = "connected to api.telegram"
+;
+let TelegramImages = //checks devices using foss telegram dll's.
+DeviceImageLoadEvents
+| where FileName contains "Telegram.Bot.dll"
+| summarize max(Timestamp) by DeviceName
+| extend TelegramDLL = "used Telegram.Bot.dll"
+;
+let ToCombine =
+union TelegramDevices, TelegramImages
+;
+let TelegramUsers = // parses LoggedOnUsers and washes data
+DeviceInfo
+| where LoggedOnUsers !contains "[]"
+| extend parsed = parse_json(LoggedOnUsers)
+| mv-expand parsed
+| extend UserName = parsed.UserName
+| distinct DeviceName, tostring(UserName)
+| join kind=inner ToCombine on DeviceName
+| extend Indicator = coalesce(NetworkConnection, TelegramDLL)
+| extend UserName = tolower(UserName)
+| extend UserName = extract(@"(?:adm-|ha-)(.*)", 1, UserName)
+//| extend UPN = iff(UserName contains "adm-"or UserName contains "ha-",UserName,"na")
+| project DeviceName, UserName
+;
+let UsersToTelegramUsers = //maps identities and emails to previous
+IdentityInfo
+| summarize max(Timestamp) by AccountName, AccountUpn
+| extend UserName = tolower(AccountName)
+| join kind=inner TelegramUsers on UserName 
+;
+UsersToTelegramUsers
+| project AccountName, AccountUpn, DeviceName
+| sort by AccountUpn
