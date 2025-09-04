@@ -1,0 +1,20 @@
+//map users to all devices logged in last timeframe
+let targetUsers = dynamic(["username"]); //change useraccount here, use multiple as an array
+let mapTargetUserstoUPN = IdentityInfo
+| where (AccountName has_any (targetUsers))
+| distinct AccountName, AccountUpn
+;
+let devicesNotServer = DeviceInfo
+| where OSPlatform !contains "server"and OSPlatform contains "Windows" // change filter here for non-windows etc.
+;
+let mapUserstoDevices = DeviceLogonEvents
+| where (AccountName has_any (targetUsers))
+| summarize count() by DeviceName,AccountName, LogonType
+| where LogonType contains "interactive" // change filter here for remote connection via network etc.
+| project-away count_
+;
+let mainSearch = mapUserstoDevices
+| join kind=inner devicesNotServer on DeviceName
+;
+mainSearch
+| distinct AccountName, DeviceName
