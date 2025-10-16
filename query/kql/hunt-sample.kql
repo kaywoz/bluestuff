@@ -1,0 +1,32 @@
+//threat hunt - actor - descriptive name
+let malicious_domains = dynamic ([ // malicious domains
+//"google.com" //placeholder
+]);
+let malicious_ips = dynamic ([ // malicious ips
+//"1.1.1.1" //placeholder
+]);
+let malicious_files = dynamic ([ // malicious files sha256
+//"5B5C99020325D9CC02053AC31C74E0DABF1C5339F8D0465E96B0AFD91ADE3C3F"//placeholder
+]);
+let checkIOC1 =
+DeviceNetworkEvents
+| where (RemoteIP has_any (malicious_domains) or (RemoteUrl has_any (malicious_ips)))
+| extend Label = "IoC IP/domain"
+;
+let checkIOC2 =
+DeviceFileEvents
+| where (SHA256 has_any (malicious_files))
+| extend Label = "IoC files"
+;
+let checkIOC3 =
+DeviceProcessEvents
+| where (SHA256 has_any (malicious_files))
+| extend Label = "IoC process"
+;
+union checkIOC1, checkIOC2, checkIOC3
+| extend IoC = case(Label contains "IoC IP/domain", RemoteIP,
+Label contains "IoC files", SHA256,
+Label contains "IoC process", SHA256,
+"other"
+) 
+| project TimeGenerated, DeviceId, DeviceName, IoC, Label
