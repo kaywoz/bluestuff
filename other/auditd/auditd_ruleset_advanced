@@ -1,0 +1,150 @@
+# Basic exclusions for system noise (retain critical context)
+-a always,exclude -F msgtype=PATH -F auid<1000
+
+# Session termination
+-a always,exit -F arch=b64 -S exit,exit_group -F auid>1000 -F auid!=-1 -k session_end
+-a always,exit -F arch=b32 -S exit,exit_group -F auid>1000 -F auid!=-1 -k session_end
+
+# Process execution
+-w /usr/bin/docker -p x -k exec_docker_cli
+-a always,exit -F arch=b64 -S execve,execveat -F auid>=1000 -F auid!=-1 -k exec_user
+-a always,exit -F arch=b32 -S execve            -F auid>=1000 -F auid!=-1 -k exec_user
+-w /tmp -p x -k exec_tmp
+-w /var/tmp -p x -k exec_tmp
+-w /dev/shm -p x -k exec_tmp
+
+# File creation, deletion, and modification
+-a always,exit -F arch=b64 -S unlink,unlinkat -F auid>=1000 -F auid!=-1 -k fs_delete
+-a always,exit -F arch=b32 -S unlink,unlinkat -F auid>=1000 -F auid!=-1 -k fs_delete
+-a always,exit -F arch=b64 -S creat,open,openat,openat2,ftruncate,truncate,rename,renameat,link,linkat,symlink,symlinkat,mknod,mknodat -F auid!=-1 -k fs_create
+-a always,exit -F arch=b32 -S creat,open,openat,ftruncate,truncate,rename,renameat,link,linkat,symlink,symlinkat,mknod,mknodat -F auid!=-1 -k fs_create
+-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat,chown,fchown,fchownat,lchown,setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr,utime,utimes,utimensat -k fs_meta
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat,chown,fchown,fchownat,lchown,setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr,utime,utimes,utimensat -k fs_meta
+
+# User and privilege changes
+-a always,exit -F arch=b64 -S setuid,setgid,setreuid,setregid,setresuid,setresgid,setfsuid,setfsgid -F auid>=1000 -F auid!=-1 -k id_change
+-a always,exit -F arch=b32 -S setuid,setgid,setreuid,setregid,setresuid,setresgid,setfsuid,setfsgid -F auid>=1000 -F auid!=-1 -k id_change
+-a always,exit -F arch=b64 -S capset -k cap_change
+-a always,exit -F arch=b32 -S capset -k cap_change
+
+# Kernel module and system control changes
+-w /usr/bin/kmod -p x -k mod_change
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F auid!=-1 -k mod_change
+-a always,exit -F arch=b32 -S init_module,delete_module -F auid!=-1 -k mod_change
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/lib/modules/ -F perm=r -F success=1 -k mod_change
+-a always,exit -F arch=b32 -S open,openat -F dir=/lib/modules/ -F perm=r -F success=1 -k mod_change
+-a always,exit -F arch=b64 -S kexec_load,ptrace,bpf,perf_event_open,unshare,clone3,prlimit64,seccomp -k kernel_controls
+-a always,exit -F arch=b32 -S kexec_load,ptrace,perf_event_open,unshare,prlimit64 -k kernel_controls
+-a always,exit -F arch=b64 -S sethostname,setdomainname -k net_identity
+-a always,exit -F arch=b32 -S sethostname,setdomainname -k net_identity
+
+# Mount and filesystem namespace operations
+-a always,exit -F arch=b64 -S mount,umount2,pivot_root,chroot -k mount_ops
+-a always,exit -F arch=b32 -S mount,umount2,chroot -k mount_ops
+
+# Time and clock changes
+-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time_change
+-a always,exit -F arch=b32 -S adjtimex,settimeofday,clock_settime -k time_change
+-w /etc/adjtime -p wa -k time_change
+-w /sbin/hwclock -p x -k time_change
+
+# Authentication and authorization configuration
+-w /var/log/auth.log -p wa -k auth_logs
+-w /var/log/wtmp     -p wa -k auth_logs
+-w /var/log/btmp     -p wa -k auth_logs
+-w /var/log/secure   -p wa -k auth_logs
+-w /etc/sudoers   -p wa -k auth_cfg
+-w /etc/sudoers.d -p wa -k auth_cfg
+-w /etc/pam.d     -p wa -k auth_cfg
+
+# Cron and scheduled tasks
+-w /etc/crontab      -p wa -k cron_cfg
+-w /etc/cron.d       -p wa -k cron_cfg
+-w /etc/cron.daily   -p wa -k cron_cfg
+-w /etc/cron.hourly  -p wa -k cron_cfg
+-w /etc/cron.weekly  -p wa -k cron_cfg
+-w /etc/cron.monthly -p wa -k cron_cfg
+-w /etc/systemd/system -p wa -k timers_cfg
+-w /lib/systemd/system -p wa -k timers_cfg
+
+# Networking, DNS, and SSH
+-w /etc/resolv.conf            -p wa -k dns_cfg
+-w /run/resolvconf/resolv.conf -p wa -k dns_cfg
+-w /etc/hosts                  -p wa -k net_cfg
+-w /etc/hosts.allow            -p wa -k net_cfg
+-w /etc/hosts.deny             -p wa -k net_cfg
+-w /etc/ssh/sshd_config        -p wa -k ssh_cfg
+-w /etc/ssh/ssh_config         -p wa -k ssh_cfg
+-w /etc/nftables.conf          -p wa -k fw_cfg
+-w /etc/iptables               -p wa -k fw_cfg
+-w /etc/iptables.rules         -p wa -k fw_cfg
+-w /etc/sysconfig/iptables     -p wa -k fw_cfg
+-w /etc/firewalld              -p wa -k fw_cfg
+
+# Container management and runtime
+-w /etc/docker/daemon.json            -p wa -k docker_cfg
+-w /usr/bin/dockerd                   -p x  -k docker_daemon
+-w /lib/systemd/system/docker.service -p wa -k docker_unit
+-w /lib/systemd/system/docker.socket  -p wa -k docker_unit
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/var/lib/docker -F perm=w -F success=1 -k docker_storage
+-a always,exit -F arch=b32 -S open,openat         -F dir=/var/lib/docker -F perm=w -F success=1 -k docker_storage
+-w /etc/containerd/config.toml        -p wa -k containerd_cfg
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/var/lib/containerd -F perm=w -F success=1 -k containerd_storage
+-a always,exit -F arch=b32 -S open,openat         -F dir=/var/lib/containerd -F perm=w -F success=1 -k containerd_storage
+-w /usr/bin/containerd                -p x  -k containerd_daemon
+-w /usr/bin/runc                      -p x  -k containerd_runtime
+
+# Account and credential databases
+-w /etc/passwd -p wa -k acct_db
+-w /etc/shadow -p wa -k acct_db
+-w /etc/group  -p wa -k acct_db
+-w /home/ -p wa -k home_tree
+-w /root/ -p wa -k root_tree
+-w /etc/ssh -p wa -k ssh_cfg
+-w /root/.ssh/authorized_keys -p wa -k ssh_keys
+
+# System and configuration directories
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/etc -F perm=w -F success=1 -k etc_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/etc -F perm=w -F success=1 -k etc_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/boot -F perm=w -F success=1 -k boot_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/boot -F perm=w -F success=1 -k boot_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/usr/local -F perm=w -F success=1 -k usr_local_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/usr/local -F perm=w -F success=1 -k usr_local_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/opt -F perm=w -F success=1 -k opt_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/opt -F perm=w -F success=1 -k opt_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/bin -F perm=w -F success=1 -k bin_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/usr/bin -F perm=w -F success=1 -k bin_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/sbin -F perm=w -F success=1 -k sbin_changes
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/usr/sbin -F perm=w -F success=1 -k sbin_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/bin -F perm=w -F success=1 -k bin_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/usr/bin -F perm=w -F success=1 -k bin_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/sbin -F perm=w -F success=1 -k sbin_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/usr/sbin -F perm=w -F success=1 -k sbin_changes
+
+# System logs
+-a always,exit -F arch=b64 -S open,openat,openat2 -F dir=/var/log -F perm=w -F success=1 -k log_changes
+-a always,exit -F arch=b32 -S open,openat         -F dir=/var/log -F perm=w -F success=1 -k log_changes
+-w /etc/logrotate.conf -p wa -k logrotate
+-w /etc/logrotate.d    -p wa -k logrotate
+
+# Package management integrity
+-w /usr/bin/apt     -p x -k pkg_mgmt
+-w /usr/bin/apt-get -p x -k pkg_mgmt
+-w /usr/bin/dpkg    -p x -k pkg_mgmt
+-w /var/lib/dpkg/   -p wa -k pkg_db
+-w /usr/bin/dnf     -p x -k pkg_mgmt
+-w /usr/bin/yum     -p x -k pkg_mgmt
+-w /var/lib/rpm/    -p wa -k pkg_db
+-w /usr/bin/zypper  -p x -k pkg_mgmt
+
+# Temporary and shared memory directories
+-w /tmp     -p wa -k tmp_changes
+-w /var/tmp -p wa -k tmp_changes
+-w /dev/shm -p wa -k tmp_changes
+
+# Timezone configuration
+-w /etc/localtime              -p wa -k tz_cfg
+-w /usr/share/zoneinfo/Etc/UTC -p wa -k tz_cfg
+
+# Make rules immutable
+-e 2
