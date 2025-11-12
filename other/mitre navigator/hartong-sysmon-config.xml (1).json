@@ -69,6 +69,17 @@
 			"showSubtechniques": false
 		},
 		{
+			"techniqueID": "T1489",
+			"tactic": "impact",
+			"score": 10,
+			"color": "",
+			"comment": "",
+			"enabled": true,
+			"metadata": [],
+			"links": [],
+			"showSubtechniques": false
+		},
+		{
 			"techniqueID": "T1564",
 			"tactic": "defense-evasion",
 			"score": 10,
@@ -533,6 +544,17 @@
 		{
 			"techniqueID": "T1105",
 			"tactic": "command-and-control",
+			"score": 10,
+			"color": "",
+			"comment": "",
+			"enabled": true,
+			"metadata": [],
+			"links": [],
+			"showSubtechniques": false
+		},
+		{
+			"techniqueID": "T1490",
+			"tactic": "impact",
 			"score": 10,
 			"color": "",
 			"comment": "",
