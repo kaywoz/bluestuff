@@ -1,0 +1,55 @@
+// --- PARAMETERS ---
+let Devices = dynamic([
+  // device hostname filters, leave "*" to include all
+  "*"
+]);
+let Malicious_files = dynamic([
+  // extension foldernames or addon IDs you consider malicious
+  // e.g., "cjpalhdlnbpafiamejdnhcphjbkeiagm", "{addon-id}.xpi", "some-bad-addon"
+  "*"
+]);
+// --- FIREFOX ---
+let Extensions_Firefox =
+DeviceFileEvents
+| where isnotempty(FolderPath)
+| where FolderPath has @"Firefox\Profiles\"
+| extend ExtensionName = extract(@"(?i)\\extensions\\([^\\]+)", 1, FolderPath)
+// optional hygiene filters (trash/staged/langpack)
+| where isnotempty(ExtensionName)
+| where tolower(ExtensionName) !contains "trash"
+| where tolower(ExtensionName) !contains "staged"
+| where not(tolower(ExtensionName) startswith "langpack")
+| extend Label = "Firefox"
+| project Timestamp, DeviceName, Label, FolderPath, ExtensionName;
+// --- CHROME ---
+let Extensions_Chrome =
+DeviceFileEvents
+| where isnotempty(FolderPath)
+| where tolower(FolderPath) has @"google\chrome" and FolderPath has @"User Data\Default\Extensions\"
+| extend ExtensionName = extract(@"(?i)\\Extensions\\([^\\]+)", 1, FolderPath)
+| where isnotempty(ExtensionName)
+| where tolower(ExtensionName) !contains "temp"
+| extend Label = "Chrome"
+| project Timestamp, DeviceName, Label, FolderPath, ExtensionName;
+// --- EDGE ---
+let Extensions_Edge =
+DeviceFileEvents
+| where isnotempty(FolderPath)
+| where tolower(FolderPath) has @"microsoft\edge" and FolderPath has @"User Data\Default\Extensions\"
+| extend ExtensionName = extract(@"(?i)\\Extensions\\([^\\]+)", 1, FolderPath)
+| where isnotempty(ExtensionName)
+| where tolower(ExtensionName) !contains "temp"
+| extend Label = "Edge"
+| project Timestamp, DeviceName, Label, FolderPath, ExtensionName;
+// --- UNION EVERYTHING ---
+let All_Extensions =
+union Extensions_Firefox, Extensions_Chrome, Extensions_Edge
+| extend Status = iff(ExtensionName has_any (Malicious_files), "Detected", "Not Detected")
+//| where DeviceName has_any (Devices)
+;
+let Detection_Summary = All_Extensions
+| summarize count() by Label, Status;
+let Extension_Summary = All_Extensions
+| summarize count() by ExtensionName, Label;
+union Detection_Summary, Extension_Summary
+| sort by Status, count_
