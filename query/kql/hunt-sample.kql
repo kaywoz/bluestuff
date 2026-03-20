@@ -1,32 +1,121 @@
-//threat hunt - actor - descriptive name
-let malicious_domains = dynamic ([ // malicious domains
-//"google.com" //placeholder
+// ======================================================================
+// Threat Hunt Template – Multi‑Type IoC Sweep
+// Generic, unattributed — use for rapid TI ingestion & threat hunts
+// ======================================================================
+//
+// HOW TO USE:
+// 1. Paste new IoCs (domains, IPs, hashes, commands, file paths)
+//    into the dynamic arrays below.
+// 2. Adjust TimeFrame (default: 24 hours)
+// 3. Run in MDE's Advanced Hunting.
+//
+// NOTES:
+// - "Value" is a confidence score (1–3)
+// - "IoC" is auto‑mapped from the matching field
+// - Extend and union sections allow easy expansion with new IoC types
+// ======================================================================
+
+//threat hunt - "name of threat hunt" - codename ->>>>>>>>>>>>>>>>>>- CHANGE THIS
+
+//SOAR-ticket link ->>>>>>>>>>>>>>>>>>- CHANGE THIS
+
+// ---------- Time window for hunting ----------
+let TimeFrame = ago(1d);  // Change as needed (e.g., ago(7d))
+// ---------- IoC lists: fill these with real data ----------
+let malicious_domains = dynamic ([
+// "example.bad" - PASTE IOC DATA HERE
 ]);
-let malicious_ips = dynamic ([ // malicious ips
-//"1.1.1.1" //placeholder
+let malicious_ips = dynamic ([
+// "1.2.3.4" - PASTE IOC DATA HERE
 ]);
-let malicious_files = dynamic ([ // malicious files sha256
-//"5B5C99020325D9CC02053AC31C74E0DABF1C5339F8D0465E96B0AFD91ADE3C3F"//placeholder
+let malicious_files = dynamic ([  
+// SHA256 - PASTE IOC DATA HERE
+// "5B5C99020325D9CC02053AC31C74E0DABF1C5339F8D0465E96B0AFD91ADE3C3F" - PASTE IOC DATA HERE
 ]);
+let malicious_cmds = dynamic ([
+// "/tmp/.x11-unix/payload" - PASTE IOC DATA HERE
+]);
+let suspicious_filesystem_artifacts = dynamic ([
+// "mimikatz.exe" - PASTE IOC DATA HERE
+]);
+// ======================================================================
+// IoC Checks — each block handles a different IoC type
+// ======================================================================
+// 1. Network Events — Remote IPs
 let checkIOC1 =
-DeviceNetworkEvents
-| where (RemoteIP has_any (malicious_domains) or (RemoteUrl has_any (malicious_ips)))
-| extend Label = "IoC IP/domain"
-;
+    DeviceNetworkEvents
+    | where TimeGenerated > TimeFrame
+    | where RemoteIP has_any (malicious_ips)
+    | extend Label = "IoC IP"
+    | extend Value = "2";
+// 2. Network Events — Domains / URLs
 let checkIOC2 =
-DeviceFileEvents
-| where (SHA256 has_any (malicious_files))
-| extend Label = "IoC files"
-;
+    DeviceNetworkEvents
+    | where TimeGenerated > TimeFrame
+    | where RemoteUrl has_any (malicious_domains)
+    | extend Label = "IoC Domain"
+    | extend Value = "3";
+// 3. File Events — malicious dropped/modified files (by hash)
 let checkIOC3 =
-DeviceProcessEvents
-| where (SHA256 has_any (malicious_files))
-| extend Label = "IoC process"
-;
-union checkIOC1, checkIOC2, checkIOC3
-| extend IoC = case(Label contains "IoC IP/domain", RemoteIP,
-Label contains "IoC files", SHA256,
-Label contains "IoC process", SHA256,
-"other"
-) 
-| project TimeGenerated, DeviceId, DeviceName, IoC, Label
+    DeviceFileEvents
+    | where TimeGenerated > TimeFrame
+    | where SHA256 has_any (malicious_files)
+    | extend Label = "IoC File Hash"
+    | extend Value = "3";
+// 4. Process Events — malicious executed processes (by hash)
+let checkIOC4 =
+    DeviceProcessEvents
+    | where TimeGenerated > TimeFrame
+    | where SHA256 has_any (malicious_files)
+    | extend Label = "IoC Process Hash"
+    | extend Value = "3";
+// 5. Process Events — suspicious command lines
+let checkIOC5 =
+    DeviceProcessEvents
+    | where TimeGenerated > TimeFrame
+    | where ProcessCommandLine has_any (malicious_cmds)
+    | extend Label = "IoC CommandLine"
+    | extend Value = "2";
+// 6. Filesystem artifacts — suspicious filenames or folders
+let checkIOC6 =
+    DeviceProcessEvents
+    | where TimeGenerated > TimeFrame
+    | where FileName has_any (suspicious_filesystem_artifacts)
+        or FolderPath has_any (suspicious_filesystem_artifacts)
+    | extend Label = "IoC Filesystem Artifact"
+    | extend Value = "1";
+// ======================================================================
+// Combine all IoC hits
+// ======================================================================
+union checkIOC1, checkIOC2, checkIOC3, checkIOC4, checkIOC5, checkIOC6
+| extend IoC = case(
+        Label == "IoC IP", RemoteIP,
+        Label == "IoC Domain", RemoteUrl,
+        Label == "IoC File Hash", SHA256,
+        Label == "IoC Process Hash", SHA256,
+        Label == "IoC CommandLine", ProcessCommandLine,
+        Label == "IoC Filesystem Artifact", strcat(FileName, " / ", FolderPath),
+        "other"
+    )
+| project
+    TimeGenerated,
+    DeviceId,
+    Timestamp,
+    Value,
+    DeviceName,
+    IoC,
+    Label,
+    RemoteUrl,
+    ProcessCommandLine,
+    ReportId
+| summarize count() by
+    DeviceName, IoC, Label, Value, DeviceId, Timestamp, TimeGenerated, ReportId
+| sort by count_ desc
+
+
+
+// ======================================================================
+// EXCLUSIONS (optional)
+// Uncomment or add your SOC systems or testing hosts below.
+// ======================================================================
+// | where DeviceName !contains "your-test-host
