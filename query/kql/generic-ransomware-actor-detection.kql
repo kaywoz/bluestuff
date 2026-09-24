@@ -1,0 +1,181 @@
+// Generic Ransomware Pre-Encryption Hunt
+// Sign-in -> Lateral Movement -> Admin Share Transfer -> Archive Staging -> Impact Preparation
+// Correlates successful sign-ins with common ransomware precursor activity.
+let Lookback = 30d;
+// ========================================
+// Stage 1 - Successful User Access
+// ========================================
+let UserAccess =
+SigninLogs
+| where TimeGenerated > ago(Lookback)
+| where ResultType == 0
+| extend User = tolower(tostring(split(UserPrincipalName, "@")[0]))
+| summarize
+    FirstAccess = min(TimeGenerated),
+    UserPrincipalName = any(UserPrincipalName),
+    SourceIPs = make_set(IPAddress, 20)
+    by User;
+// ========================================
+// Stage 2 - Lateral Movement
+// ========================================
+let LateralMovement =
+union isfuzzy=true
+(
+    SecurityEvent
+    | where TimeGenerated > ago(Lookback)
+    | where EventID == 7045
+    | extend User =
+        tolower(
+            tostring(
+                split(Account, "\\")[-1]
+            )
+        )
+    | project
+        TimeGenerated,
+        DeviceName = Computer,
+        User,
+        Evidence = "Service Installation"
+),
+(
+    DeviceProcessEvents
+    | where TimeGenerated > ago(Lookback)
+    | where ProcessCommandLine has_any (
+        "psexec",
+        "paexec",
+        "wmic",
+        "winrm",
+        "invoke-command",
+        "enter-pssession"
+    )
+    | extend User =
+        tolower(
+            tostring(
+                split(InitiatingProcessAccountName, "\\")[-1]
+            )
+        )
+    | project
+        TimeGenerated,
+        DeviceName,
+        User,
+        Evidence = strcat(FileName, ": ", ProcessCommandLine)
+)
+| where isnotempty(User)
+| summarize
+    LateralEvents = count(),
+    FirstLateral = min(TimeGenerated),
+    LateralEvidence = make_set(Evidence, 20)
+    by DeviceName, User;
+// ========================================
+// Stage 3 - ADMIN$/IPC$ Tool Transfer
+// ========================================
+let AdminShareTransfer =
+DeviceFileEvents
+| where TimeGenerated > ago(Lookback)
+| where FolderPath has @"\ADMIN$\" or FolderPath has @"\IPC$\"
+| summarize
+    AdminShareEvents = count(),
+    FirstAdminShare = min(TimeGenerated),
+    DroppedFiles = make_set(FileName, 20)
+    by DeviceName;
+// ========================================
+// Stage 4 - Archive/Data Staging
+// ========================================
+let DataStaging =
+DeviceProcessEvents
+| where TimeGenerated > ago(Lookback)
+| where FileName in~ (
+    "rar.exe",
+    "7z.exe",
+    "7za.exe",
+    "zip.exe",
+    "tar.exe"
+)
+| where ProcessCommandLine has_any (
+    "ProgramData",
+    @"\Users\Public\",
+    ".bak",
+    ".sql",
+    ".mdf",
+    "backup"
+)
+| summarize
+    StagingEvents = count(),
+    FirstStaging = min(TimeGenerated),
+    ArchiveCommands = make_set(ProcessCommandLine, 20)
+    by DeviceName;
+// ========================================
+// Stage 5 - Impact Preparation
+// Shadow Copy Deletion / Recovery Tampering
+// ========================================
+let ImpactPreparation =
+DeviceProcessEvents
+| where TimeGenerated > ago(Lookback)
+| where
+(
+    FileName in~ (
+        "vssadmin.exe",
+        "wmic.exe"
+    )
+    and ProcessCommandLine has_any (
+        "delete shadows",
+        "shadowcopy delete",
+        "resize shadowstorage"
+    )
+)
+or
+(
+    FileName =~ "bcdedit.exe"
+    and ProcessCommandLine has_any (
+        "recoveryenabled no",
+        "ignoreallfailures"
+    )
+)
+or
+(
+    FileName =~ "powershell.exe"
+    and ProcessCommandLine has_any (
+        "Win32_ShadowCopy",
+        "Get-WmiObject Win32_ShadowCopy"
+    )
+)
+| summarize
+    ImpactEvents = count(),
+    FirstImpact = min(TimeGenerated),
+    ImpactCommands = make_set(ProcessCommandLine, 20)
+    by DeviceName;
+// ========================================
+// Correlation
+// ========================================
+UserAccess
+| join kind=inner LateralMovement on User
+| join kind=leftouter AdminShareTransfer on DeviceName
+| join kind=leftouter DataStaging on DeviceName
+| join kind=leftouter ImpactPreparation on DeviceName
+| where FirstLateral > FirstAccess
+| where
+    isnotempty(FirstAdminShare)
+    or isnotempty(FirstStaging)
+    or isnotempty(FirstImpact)
+| project
+    UserPrincipalName,
+    DeviceName,
+    FirstAccess,
+    SourceIPs,
+    FirstLateral,
+    LateralEvents,
+    LateralEvidence,
+    FirstAdminShare,
+    AdminShareEvents,
+    DroppedFiles,
+    FirstStaging,
+    StagingEvents,
+    ArchiveCommands,
+    FirstImpact,
+    ImpactEvents,
+    ImpactCommands
+| order by coalesce(
+    FirstImpact,
+    FirstStaging,
+    FirstAdminShare,
+    FirstLateral
+) desc
